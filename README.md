@@ -67,7 +67,7 @@ Required command-line tools:
 - **kind** - Kubernetes IN Docker for local cluster testing (v0.30.0+)
 - **go** - Go programming language (1.21+)
 - **make** - Build automation tool
-- **git** - Version control (2.52.0+)
+- **git** - Version control (2.40+)
 
 Cloud provider CLIs (depending on which provider you're testing):
 - **az** - Azure CLI (for CAPZ)
