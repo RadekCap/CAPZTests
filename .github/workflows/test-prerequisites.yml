@@ -1,0 +1,43 @@
+name: Test prerequisites
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  test-prereq:
+    name: Test prerequisites
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod'
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Install OpenShift CLI
+      run: |
+        wget -q https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
+        tar -xzf openshift-client-linux.tar.gz
+        sudo mv oc /usr/local/bin/
+        sudo chmod +x /usr/local/bin/oc
+        oc version --client
+
+    - name: Setup Azure CLI (already installed)
+      run: |
+        az version
+
+    - name: Run prerequisite tests
+      run: make test-prereq
+      env:
+        # Skip Azure login test in CI by running in short mode
+        GOFLAGS: -short
