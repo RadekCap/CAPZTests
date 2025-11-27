@@ -26,4 +26,4 @@ jobs:
         oc version --client
 
     - name: Run prerequisite tests only
-      run: go test -v ./test -run TestPrerequisites
+      run: go test -v -short ./test -run TestPrerequisites
