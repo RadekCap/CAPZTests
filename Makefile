@@ -14,8 +14,8 @@ help: ## Display this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-test: ## Run all tests
-	go test -v ./test -timeout 60m
+test: ## Run all tests (skips non-prerequisite tests by default, use 'make test-all' for full suite)
+	go test -v ./test -skip "TestSetup|TestKindCluster|TestInfrastructure|TestDeployment|TestVerification|TestStart" -timeout 60m
 
 test-short: ## Run quick tests only (skip long-running tests)
 	go test -v -short ./test
