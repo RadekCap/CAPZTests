@@ -1,75 +1,287 @@
-# CAPI Testing Framework
+# ARO-CAPZ Test Suite
 
-A comprehensive testing framework for Cluster API (CAPI) implementations across multiple cloud providers.
+Comprehensive test suite for Azure Red Hat OpenShift (ARO) deployment using Cluster API Provider Azure (CAPZ) and Azure Service Operator (ASO).
 
 ## Overview
 
-This testing framework provides a unified approach to testing CAPI implementations including:
-- **CAPZ** - Azure implementation
-- **CAPA** - AWS implementation
-- **CAPG** - Google Cloud implementation
+This repository contains a Go-based test suite that validates the complete ARO cluster deployment workflow on Azure using CAPZ. The tests verify each step of the deployment process, from prerequisite verification to final cluster validation.
 
-## Testing Capabilities
+The test suite is designed to work with the [cluster-api-installer](https://github.com/RadekCap/cluster-api-installer) ARO-CAPZ implementation.
 
-The framework supports multiple testing levels:
+## What This Tests
 
-### Unit Testing
-Testing individual components and functions in isolation to ensure correctness at the smallest level.
+The test suite validates:
+- **CAPZ on Azure** - Cluster API Provider Azure for deploying Kubernetes infrastructure on Azure
+- **ARO Deployment** - Azure Red Hat OpenShift cluster provisioning
+- **ASO Integration** - Azure Service Operator for managing Azure resources
 
-### Integration Testing
-Testing how multiple components work together within the CAPI ecosystem, validating interactions between controllers, providers, and Kubernetes resources.
+## Test Coverage
 
-### End-to-End Testing
-Complete workflow testing that validates entire cluster lifecycle operations including provisioning, scaling, upgrading, and deprovisioning across different cloud providers.
+The suite provides comprehensive testing across six test phases:
 
-## Technology Stack
+### 1. Prerequisites Verification
+- Validates required CLI tools (docker/podman, kind, az, oc, helm, git, kubectl)
+- Checks Azure CLI authentication status
+- Verifies tool versions and availability
 
-The framework leverages multiple technologies and languages:
-- **Go** - Primary programming language for test implementation
-- **Ginkgo** - BDD-style testing framework for Go
-- **Kuttl** - Kubernetes test tool for declarative testing
-- **Shell Scripts** - Automation and helper scripts
-- Additional tools and languages as needed
+### 2. Repository Setup
+- Clones or validates cluster-api-installer repository
+- Verifies repository structure and required files
+- Sets appropriate script permissions
 
-## Test Organization
+### 3. Kind Cluster Deployment
+- Deploys local Kind cluster as management cluster
+- Installs CAPZ and CAPI components
+- Verifies cluster accessibility and component health
 
-*Details on how tests are structured, organized, and categorized will be defined here.*
+### 4. Infrastructure Generation
+- Generates ARO infrastructure resource manifests
+- Validates YAML structure and content
+- Applies resources to management cluster
 
-## Configuration
+### 5. Deployment Monitoring
+- Monitors ARO cluster provisioning on Azure
+- Waits for control plane readiness
+- Tracks deployment conditions and status
 
-The framework uses configuration files to manage:
-- **Cloud Provider Access** - Credentials and authentication for Azure, AWS, and GCP
-- **Kubernetes Clusters** - Clusters can be created dynamically by tests or provided via configuration
-- **Test Parameters** - Environment-specific settings and test behavior
-
-*Detailed configuration examples and options will be provided.*
+### 6. Cluster Verification
+- Retrieves workload cluster kubeconfig
+- Verifies cluster nodes and OpenShift components
+- Performs health checks on deployed cluster
 
 ## Prerequisites
 
-### CLI and Development Tools
-*Required command-line tools and development dependencies will be defined here.*
+### Required Tools
 
-### Runtime Requirements
-- Kubernetes cluster access (can be created by tests or provided via configuration)
-- Cloud provider credentials configured according to the specific CAPI implementation being tested
+- **Docker** or **Podman** - Container runtime
+- **Kind** - Kubernetes in Docker for management cluster
+- **Azure CLI** (`az`) - Azure authentication and management
+- **OpenShift CLI** (`oc`) - OpenShift cluster interaction
+- **Helm** - Package manager for Kubernetes
+- **Git** - Source control
+- **kubectl** - Kubernetes CLI
+- **Go** 1.21+ - For running tests
+
+### Azure Access
+
+- Azure account with appropriate permissions
+- Access to Azure subscription for ARO deployment
+- Authenticated via `az login`
+
+## Configuration
+
+Tests are configured via environment variables:
+
+### Repository Configuration
+
+- `ARO_REPO_URL` - cluster-api-installer repository URL (default: `https://github.com/RadekCap/cluster-api-installer.git`)
+- `ARO_REPO_BRANCH` - Branch to use (default: `ARO-ASO`)
+- `ARO_REPO_DIR` - Local repository directory (default: `/tmp/cluster-api-installer-aro`)
+
+### Cluster Configuration
+
+- `KIND_CLUSTER_NAME` - Management cluster name (default: `capz-stage`)
+- `CLUSTER_NAME` - ARO cluster name (default: `test-cluster`)
+- `RESOURCE_GROUP` - Azure resource group
+- `OPENSHIFT_VERSION` - OpenShift version (default: `4.18`)
+- `REGION` - Azure region (default: `eastus`)
+- `AZURE_SUBSCRIPTION_NAME` - Azure subscription ID
+- `ENV` - Environment identifier (default: `stage`)
+- `USER` - User identifier
 
 ## Getting Started
 
-*Custom setup process for CAPI testing will be documented here, including:*
-- CLI tools and development environment setup
-- Initial configuration
-- Running your first test
+### Quick Start
+
+1. **Install prerequisites**:
+   ```bash
+   # Check prerequisites
+   make check-prereq
+   ```
+
+2. **Authenticate with Azure**:
+   ```bash
+   az login
+   ```
+
+3. **Run prerequisite tests**:
+   ```bash
+   make test-prereq
+   ```
+
+4. **Run full test suite**:
+   ```bash
+   make test-all
+   ```
+
+### Running Tests
+
+#### Using Makefile
+
+```bash
+# Run prerequisite tests only (fast, no Azure resources created)
+make test
+
+# Run full test suite (all phases sequentially)
+make test-all
+
+# Run specific test phase
+make test-setup       # Repository setup
+make test-kind        # Kind cluster deployment
+make test-infra       # Infrastructure generation
+make test-deploy      # Deployment monitoring
+make test-verify      # Cluster verification
+
+# Run quick tests (skip long-running operations)
+make test-short
+```
+
+#### Using Go Test Directly
+
+```bash
+# Run all tests
+go test -v ./test -timeout 60m
+
+# Run specific test phase
+go test -v ./test -run TestPrerequisites
+go test -v ./test -run TestInfrastructure
+
+# Run with custom configuration
+ENV=prod \
+CLUSTER_NAME=my-aro-cluster \
+REGION=westus2 \
+go test -v ./test -timeout 60m
+```
+
+## Integration with cluster-api-installer
+
+The test suite needs access to the cluster-api-installer repository. Three integration approaches are supported:
+
+### Option 1: Git Submodule (Recommended)
+
+```bash
+make setup-submodule
+export ARO_REPO_DIR="$(pwd)/vendor/cluster-api-installer"
+make test-all
+```
+
+### Option 2: Automatic Clone
+
+Let tests clone the repository automatically:
+
+```bash
+# Tests will clone to /tmp/cluster-api-installer-aro
+make test-all
+```
+
+### Option 3: Existing Clone
+
+Point to an existing clone:
+
+```bash
+export ARO_REPO_DIR="/path/to/cluster-api-installer"
+make test-all
+```
+
+See [INTEGRATION.md](INTEGRATION.md) for detailed integration patterns.
+
+## Test Structure
+
+```
+test/
+├── prerequisites_test.go   # Tool and auth verification
+├── setup_test.go           # Repository setup
+├── kind_cluster_test.go    # Management cluster deployment
+├── infrastructure_test.go  # Resource generation
+├── deployment_test.go      # Cluster provisioning monitoring
+├── verification_test.go    # Final cluster validation
+├── config.go               # Configuration management
+├── helpers.go              # Shared utilities
+└── README.md               # Detailed test documentation
+```
+
+For detailed test documentation, see [test/README.md](test/README.md).
 
 ## CI/CD Integration
 
-The framework is designed to integrate seamlessly with continuous integration pipelines.
+The test suite integrates with GitHub Actions for continuous testing:
 
-*Details on CI/CD integration patterns, required environment variables, and pipeline examples will be documented.*
+- **Prerequisites Workflow** - Runs prerequisite checks on every push
+- **Full Test Workflow** - Can be triggered manually for complete validation
+
+See [.github/workflows/](.github/workflows/) for workflow configurations.
+
+### CI Environment Requirements
+
+1. Required tools installed (docker, kind, az, etc.)
+2. Azure credentials configured as secrets
+3. Appropriate timeout values (full tests can take 30+ minutes)
+
+## Cleanup
+
+Clean up test resources:
+
+```bash
+# Using Makefile
+make clean
+
+# Manual cleanup
+kind delete cluster --name capz-stage
+rm -rf /tmp/cluster-api-installer-aro
+rm -f /tmp/*-kubeconfig.yaml
+```
+
+## Troubleshooting
+
+### Prerequisites Failing
+
+Run prerequisite tests to identify missing tools:
+
+```bash
+make test-prereq
+```
+
+### Azure Authentication Issues
+
+Verify Azure login:
+
+```bash
+az login
+az account show
+```
+
+### Kind Cluster Problems
+
+Check cluster status:
+
+```bash
+kind get clusters
+kubectl cluster-info --context kind-capz-stage
+```
+
+### Deployment Failures
+
+Check management cluster CAPI components:
+
+```bash
+kubectl get pods -A --context kind-capz-stage
+kubectl logs -n capz-system deployment/capz-controller-manager
+```
+
+## Documentation
+
+- [test/README.md](test/README.md) - Detailed test suite documentation
+- [INTEGRATION.md](INTEGRATION.md) - Integration patterns with cluster-api-installer
+- [TEST_COVERAGE.md](TEST_COVERAGE.md) - Test coverage analysis
 
 ## Contributing
 
-*Guidelines for contributing to the testing framework.*
+Contributions are welcome! Please ensure:
+
+1. All tests pass before submitting PRs
+2. New functionality includes appropriate tests
+3. Documentation is updated to reflect changes
 
 ## License
 
-*License information will be added here.*
+[License information to be added]
