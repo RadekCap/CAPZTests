@@ -54,7 +54,7 @@ The test suite provides end-to-end coverage of the Azure Red Hat OpenShift (ARO)
 
 ---
 
-#### 3. Kind Cluster Deployment (`test/kind_cluster_test.go`)
+#### 3. Kind Cluster Deployment (`test/03_kind_cluster_test.go`)
 
 **Purpose**: Deploys and validates the management cluster that will orchestrate ARO deployment.
 

@@ -20,7 +20,7 @@ This test suite validates each step of the ARO deployment process as documented 
    - Verifies repository structure
    - Sets script permissions
 
-3. **`kind_cluster_test.go`** - Kind cluster deployment
+3. **`03_kind_cluster_test.go`** - Kind cluster deployment
    - Deploys Kind cluster with CAPZ components
    - Verifies cluster accessibility
    - Checks CAPI components installation
