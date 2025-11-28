@@ -187,7 +187,7 @@ export ARO_REPO_DIR="/path/to/cluster-api-installer"
 make test-all
 ```
 
-See [INTEGRATION.md](INTEGRATION.md) for detailed integration patterns.
+See [INTEGRATION.md](docs/INTEGRATION.md) for detailed integration patterns.
 
 ## Test Structure
 

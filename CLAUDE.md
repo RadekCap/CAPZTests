@@ -150,7 +150,7 @@ Tests require access to the [cluster-api-installer](https://github.com/RadekCap/
    export ARO_REPO_DIR="/path/to/cluster-api-installer"
    ```
 
-See `INTEGRATION.md` for detailed integration patterns.
+See `docs/INTEGRATION.md` for detailed integration patterns.
 
 ## Environment Variables
 
@@ -257,5 +257,5 @@ Always run `make test` (prerequisites only) locally. Full tests should run in CI
 
 - `README.md` - Repository overview and quick start
 - `test/README.md` - Detailed test suite documentation
-- `INTEGRATION.md` - Integration patterns with cluster-api-installer
+- `docs/INTEGRATION.md` - Integration patterns with cluster-api-installer
 - `TEST_COVERAGE.md` - Test coverage analysis and metrics

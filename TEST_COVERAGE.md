@@ -305,7 +305,7 @@ The test suite covers 100% of the documented ARO-CAPZ deployment workflow:
    - No external dependencies
    - Manual sync validation
 
-All three approaches are documented and tested in `INTEGRATION.md`.
+All three approaches are documented and tested in `docs/INTEGRATION.md`.
 
 ---
 
@@ -493,7 +493,7 @@ timeout := 60 * time.Minute  # default is 30m
    - Configuration guide
    - Usage examples
 
-3. **Integration Guide** (`INTEGRATION.md`)
+3. **Integration Guide** (`docs/INTEGRATION.md`)
    - Integration approaches
    - Setup instructions
    - Best practices
