@@ -41,9 +41,9 @@ jobs:
         kubectl version --client
 
     - name: Install Helm
-      run: |
-        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-        helm version
+      uses: azure/setup-helm@v4
+      with:
+        version: 'latest'
 
     - name: Run Kind cluster tests
       run: |
