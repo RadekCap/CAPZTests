@@ -253,6 +253,90 @@ These are tracked issues and should be fixed in separate PRs when addressed.
 
 Always run `make test` (prerequisites only) locally. Full tests should run in CI/CD or with explicit intent.
 
+## Claude Code Slash Commands
+
+This repository includes custom slash commands in `.claude/commands/` for common workflows. These commands are version-controlled and automatically available after cloning.
+
+### Available Commands
+
+#### `/add-test-phase`
+Scaffold a new test phase file following established patterns.
+
+**Use when**: Adding a new sequential test phase to the suite
+
+**What it does**:
+- Prompts for phase number and description
+- Creates properly structured test file
+- Adds Makefile target
+- Suggests documentation updates
+
+**Example**: `/add-test-phase`
+
+#### `/review-test`
+Review test files for compliance with repo patterns.
+
+**Use when**: Checking if test code follows CLAUDE.md guidelines
+
+**What it does**:
+- Validates configuration usage (NewTestConfig)
+- Checks helper function usage
+- Verifies error handling patterns
+- Confirms testing.Short() implementation
+- Reports issues with file:line references
+
+**Example**: `/review-test test/03_kind_cluster_test.go`
+
+#### `/copilot-review`
+Process GitHub Copilot code review findings for a PR.
+
+**Use when**: Responding to automated code review comments
+
+**What it does**:
+- Fetches all Copilot review comments for a PR
+- Analyzes each finding
+- Implements accepted fixes or provides denial rationale
+- Replies to each comment
+- Marks findings as resolved
+- Commits changes if implementations made
+
+**Example**: `/copilot-review 123`
+
+#### `/update-docs`
+Update documentation after code changes.
+
+**Use when**: After adding test phases, config vars, or helper functions
+
+**What it does**:
+- Identifies affected documentation files
+- Updates README.md, CLAUDE.md, test/README.md as needed
+- Ensures consistency across all docs
+- Validates cross-references and examples
+
+**Example**: `/update-docs`
+
+#### `/troubleshoot`
+Systematically debug test failures.
+
+**Use when**: A test phase is failing
+
+**What it does**:
+- Guides through diagnostic workflow
+- Checks prerequisites, auth, configuration
+- Validates phase dependencies
+- Suggests specific fixes with commands
+- Provides prevention tips
+
+**Example**: `/troubleshoot`
+
+### Using Slash Commands
+
+Simply type the command in Claude Code:
+```
+/add-test-phase
+```
+
+Commands will prompt for any required information and guide you through the task.
+
 ## Documentation
 
 - `README.md` - Repository overview and quick start
