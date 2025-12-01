@@ -127,6 +127,37 @@ install-gotestsum: ## Install gotestsum for test summaries
 check-gotestsum: ## Check if gotestsum is installed, install if missing
 	@test -f $(GOBIN)/gotestsum || $(MAKE) install-gotestsum
 
+fix-docker-config: ## Fix Docker credential helper configuration issues
+	@echo "Fixing Docker credential helper configuration..."
+	@if [ ! -f ~/.docker/config.json ]; then \
+		echo "✅ No Docker config file found - nothing to fix"; \
+		exit 0; \
+	fi
+	@echo "Current Docker config:"
+	@cat ~/.docker/config.json
+	@echo ""
+	@echo "Creating backup at ~/.docker/config.json.backup..."
+	@cp ~/.docker/config.json ~/.docker/config.json.backup
+	@echo "Removing credsStore from Docker config..."
+	@if command -v jq >/dev/null 2>&1; then \
+		jq 'del(.credsStore) | del(.credHelpers)' ~/.docker/config.json > ~/.docker/config.json.tmp && \
+		mv ~/.docker/config.json.tmp ~/.docker/config.json; \
+		echo "✅ Docker config fixed using jq"; \
+	else \
+		echo "⚠️  jq not found - using sed fallback"; \
+		sed -E '/"credsStore":/d; /"credHelpers":/,/}/d' ~/.docker/config.json > ~/.docker/config.json.tmp && \
+		mv ~/.docker/config.json.tmp ~/.docker/config.json; \
+		echo "✅ Docker config fixed using sed"; \
+	fi
+	@echo ""
+	@echo "Updated Docker config:"
+	@cat ~/.docker/config.json
+	@echo ""
+	@echo "✅ Docker credential helper configuration fixed!"
+	@echo "   Backup saved to ~/.docker/config.json.backup"
+	@echo ""
+	@echo "You can now run 'make test-kind' to deploy the Kind cluster"
+
 fmt: ## Format Go code
 	go fmt ./...
 
