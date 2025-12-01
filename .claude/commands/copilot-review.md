@@ -23,12 +23,34 @@ Process all GitHub Copilot code review findings for a pull request. Analyze each
       - Implement the suggested fix
       - Ensure fix follows repo patterns
       - Test that code still works (if applicable)
-      - Reply to comment: "Implemented. [Brief description of what was changed]"
-      - Mark comment as resolved
+      - Post individual reply to the specific comment using GitHub CLI:
+        ```bash
+        gh pr review {pr_number} --comment --body "$(cat <<'EOF'
+✅ Implemented.
+
+[Detailed description of what was changed and why]
+
+Changes:
+- [Specific change 1]
+- [Specific change 2]
+EOF
+)"
+        ```
+      - Mark comment as resolved (if supported by GitHub CLI or done manually in UI)
 
       **Option 2: DENY**
       - Provide clear rationale (e.g., "This conflicts with our sequential test pattern", "This would break idempotency", etc.)
-      - Reply to comment: "Not implementing because: [detailed rationale]"
+      - Post individual reply to the specific comment:
+        ```bash
+        gh pr review {pr_number} --comment --body "$(cat <<'EOF'
+❌ Not implementing.
+
+**Rationale**: [Detailed explanation]
+
+[Additional context about why this doesn't fit the project]
+EOF
+)"
+        ```
       - Mark comment as resolved
 
 4. After processing all findings:
@@ -59,18 +81,85 @@ Process all GitHub Copilot code review findings for a pull request. Analyze each
 - **Copilot Suggestion**: [Summary of what Copilot suggested]
 - **Decision**: ✅ ACCEPTED / ❌ DENIED
 - **Action**: [What was implemented OR why it was denied]
-- **Reply Posted**: [The actual comment posted to PR]
-- **Status**: ✅ Resolved
+- **Reply Posted**: Yes (via `gh pr review --comment`)
+- **Status**: ✅ Resolved (or pending manual resolution in UI)
+
+### Template for Individual Replies
+
+**For Accepted Findings:**
+```
+✅ **Implemented** - Finding #{N}
+
+**Location**: {file}:{line}
+
+**Change Made**: {description of implementation}
+
+**Details**:
+- {specific change 1}
+- {specific change 2}
+
+{Any additional context or testing notes}
+```
+
+**For Denied Findings:**
+```
+❌ **Not Implementing** - Finding #{N}
+
+**Location**: {file}:{line}
+
+**Rationale**: {Clear explanation of why this doesn't fit}
+
+**Reasoning**:
+- {specific reason 1}
+- {specific reason 2}
+
+{Any additional context}
+```
 
 ## Using GitHub CLI
 
-To reply to comments:
+### Reply to Individual Comments
+
+For each finding, post a separate review comment:
+```bash
+gh pr review {pr_number} --comment --body "Response to Finding #N..."
+```
+
+This creates a general PR review comment. For more context, you can reference the specific file and line in your comment body.
+
+### Alternative: Thread Replies (if needed)
+
+To reply directly in a comment thread (creates a threaded reply):
 ```bash
 gh api -X POST repos/{owner}/{repo}/pulls/comments/{comment_id}/replies \
   -f body="Your reply here"
 ```
 
-To resolve conversations (if supported by API or UI action needed)
+Note: Thread replies may not always work when replying to review comments (as opposed to issue comments) due to GitHub API limitations. Use `gh pr review --comment` as the primary method.
+
+### Mark as Resolved
+
+There is no direct built-in `gh` CLI command to mark conversations as resolved, but you can resolve review threads using the GitHub GraphQL API via `gh api`. Options:
+
+1. **Use GraphQL API to resolve threads**:
+   ```bash
+   gh api graphql -f query='
+     mutation {
+       resolveReviewThread(input: {threadId: "<thread_id>"}) {
+         thread {
+           isResolved
+         }
+       }
+     }
+   '
+   ```
+   Replace `<thread_id>` with the actual thread ID (you can fetch thread IDs using the GraphQL API).
+
+2. **Note in your reply** that the finding is addressed (✅ or ❌ emoji helps)
+
+3. **Manually resolve** in GitHub UI after posting replies
+
+4. **Copilot may auto-resolve** when it detects implementation
 
 ## Summary Report
 
