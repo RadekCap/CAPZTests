@@ -102,10 +102,12 @@ check-prereq: ## Check if required tools are installed
 	@command -v helm >/dev/null 2>&1 || (echo "Error: helm required" && exit 1)
 	@command -v git >/dev/null 2>&1 || (echo "Error: git required" && exit 1)
 	@command -v kubectl >/dev/null 2>&1 || (echo "Error: kubectl required" && exit 1)
+	@command -v go >/dev/null 2>&1 || (echo "Error: go required (install from https://golang.org/dl/)" && exit 1)
 	@echo "All prerequisites are installed!"
 
 install-gotestsum: ## Install gotestsum for test summaries
 	@echo "Installing gotestsum v1.13.0..."
+	@command -v go >/dev/null 2>&1 || (echo "Error: go is required to install gotestsum. Install Go from https://golang.org/dl/" && exit 1)
 	@go install gotest.tools/gotestsum@v1.13.0
 	@echo "gotestsum installed successfully!"
 
