@@ -26,7 +26,7 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 	}
 
 	// Output directory for generated resources
-	outputDir := filepath.Join(config.RepoDir, fmt.Sprintf("%s-%s", config.ClusterName, config.Environment))
+	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	t.Logf("Generating infrastructure resources for cluster '%s' (env: %s)", config.ClusterName, config.Environment)
 
@@ -53,7 +53,7 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 
 	// Run the generation script
 	t.Log("Running infrastructure generation script...")
-	output, err := RunCommand(t, "bash", genScriptPath, config.ClusterName)
+	output, err := RunCommand(t, "bash", genScriptPath, config.GetOutputDirName())
 	if err != nil {
 		t.Errorf("Failed to generate infrastructure resources: %v\nOutput: %s", err, output)
 		return
@@ -77,7 +77,7 @@ func TestInfrastructure_VerifyGeneratedFiles(t *testing.T) {
 	}
 
 	config := NewTestConfig()
-	outputDir := filepath.Join(config.RepoDir, fmt.Sprintf("%s-%s", config.ClusterName, config.Environment))
+	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
 		t.Skipf("Output directory does not exist: %s", outputDir)
@@ -118,7 +118,7 @@ func TestInfrastructure_ApplyResources(t *testing.T) {
 	}
 
 	config := NewTestConfig()
-	outputDir := filepath.Join(config.RepoDir, fmt.Sprintf("%s-%s", config.ClusterName, config.Environment))
+	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
 		t.Skipf("Output directory does not exist: %s", outputDir)
