@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -50,4 +51,9 @@ func NewTestConfig() *TestConfig {
 		ScriptsPath:       GetEnvOrDefault("SCRIPTS_PATH", "./scripts"),
 		GenScriptPath:     GetEnvOrDefault("GEN_SCRIPT_PATH", "./doc/aro-hcp-scripts/aro-hcp-gen.sh"),
 	}
+}
+
+// GetOutputDirName returns the output directory name for generated infrastructure files
+func (c *TestConfig) GetOutputDirName() string {
+	return fmt.Sprintf("%s-%s", c.ClusterName, c.Environment)
 }
