@@ -57,3 +57,22 @@ func GetEnvOrDefault(key, defaultValue string) string {
 	}
 	return defaultValue
 }
+
+// IsKubectlApplySuccess checks if kubectl apply output indicates success.
+// kubectl apply may return non-zero exit codes even when operations succeed,
+// particularly when resources are "unchanged".
+func IsKubectlApplySuccess(output string) bool {
+	// Error indicators in kubectl output
+	errorKeywords := []string{"error:", "failed", "invalid", "unable to"}
+
+	lowerOutput := strings.ToLower(output)
+	for _, keyword := range errorKeywords {
+		if strings.Contains(lowerOutput, keyword) {
+			return false
+		}
+	}
+
+	// If no error keywords found, consider it successful
+	// kubectl apply outputs "created", "configured", "unchanged" for success
+	return true
+}
