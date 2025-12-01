@@ -1,23 +1,87 @@
-Process all GitHub Copilot code review findings for a pull request. Analyze each finding, implement fixes or provide rationale for denial, reply to each comment, and mark as resolved.
+Process all GitHub Copilot code review findings for a pull request. Analyze each finding, implement fixes or provide rationale for denial, reply to each comment, and automatically resolve review threads via GitHub GraphQL API.
 
 ## Instructions
 
 1. Ask me for the PR number if not provided as argument (e.g., `/copilot-review 123`)
 
-2. Fetch all GitHub Copilot code review comments:
+2. Extract repository information and fetch all review threads with GraphQL:
    ```bash
-   gh api repos/{owner}/{repo}/pulls/{pr_number}/comments
+   # Get repository owner and name
+   REPO_INFO=$(gh repo view --json owner,name)
+   OWNER=$(echo "$REPO_INFO" | jq -r '.owner.login')
+   REPO=$(echo "$REPO_INFO" | jq -r '.name')
+   PR_NUMBER={pr_number}
+
+   echo "Repository: $OWNER/$REPO"
+   echo "Pull Request: #$PR_NUMBER"
+
+   # Fetch all review threads including thread IDs
+   THREADS_JSON=$(gh api graphql -f query='
+     query($owner: String!, $repo: String!, $pr: Int!) {
+       repository(owner: $owner, name: $repo) {
+         pullRequest(number: $pr) {
+           reviewThreads(first: 100) {
+             nodes {
+               id
+               isResolved
+               comments(first: 50) {
+                 nodes {
+                   id
+                   databaseId
+                   body
+                   author { login }
+                   path
+                   line
+                 }
+               }
+             }
+           }
+         }
+       }
+     }
+   ' -F owner="$OWNER" -F repo="$REPO" -F pr="$PR_NUMBER")
+
+   # Filter for Copilot comments only
+   COPILOT_THREADS=$(echo "$THREADS_JSON" | jq '[
+     .data.repository.pullRequest.reviewThreads.nodes[] |
+     select(.comments.nodes[0].author.login | test("copilot|Copilot"; "i"))
+   ]')
+
+   TOTAL_FINDINGS=$(echo "$COPILOT_THREADS" | jq 'length')
+   echo "Found $TOTAL_FINDINGS Copilot review findings"
    ```
 
-3. For EACH finding, perform this workflow:
+3. For EACH finding (iterate through COPILOT_THREADS), perform this workflow:
 
-   a. **Analyze the finding**:
-      - Read the code context
-      - Understand the suggestion
+   a. **Extract finding details**:
+      ```bash
+      # For finding index $i (0-based)
+      FINDING_DATA=$(echo "$COPILOT_THREADS" | jq -r ".[$i]")
+      THREAD_ID=$(echo "$FINDING_DATA" | jq -r '.id')
+      IS_RESOLVED=$(echo "$FINDING_DATA" | jq -r '.isResolved')
+      COMMENT=$(echo "$FINDING_DATA" | jq -r '.comments.nodes[0]')
+      COMMENT_BODY=$(echo "$COMMENT" | jq -r '.body')
+      FILE_PATH=$(echo "$COMMENT" | jq -r '.path')
+      LINE=$(echo "$COMMENT" | jq -r '.line')
+
+      echo "Finding #$((i+1))/$TOTAL_FINDINGS"
+      echo "Thread ID: $THREAD_ID"
+      echo "File: $FILE_PATH:$LINE"
+
+      # Skip if already resolved
+      if [ "$IS_RESOLVED" = "true" ]; then
+        echo "ℹ️ Thread already resolved, skipping"
+        continue
+      fi
+      ```
+
+   b. **Analyze the finding**:
+      - Read the code context at $FILE_PATH:$LINE
+      - Understand the suggestion in $COMMENT_BODY
       - Evaluate if it aligns with repo patterns (CLAUDE.md)
       - Check if it improves code quality, security, or maintainability
 
-   b. **Make a decision**:
+   c. **Make a decision**:
 
       **Option 1: ACCEPT**
       - Implement the suggested fix
@@ -36,7 +100,32 @@ Changes:
 EOF
 )"
         ```
-      - Mark comment as resolved (if supported by GitHub CLI or done manually in UI)
+      - Resolve thread via GraphQL:
+        ```bash
+        echo "Resolving thread $THREAD_ID..."
+        RESOLVE_RESULT=$(gh api graphql -f query='
+          mutation($threadId: ID!) {
+            resolveReviewThread(input: {threadId: $threadId}) {
+              thread {
+                id
+                isResolved
+              }
+            }
+          }
+        ' -F threadId="$THREAD_ID" 2>&1)
+
+        # Verify success
+        if echo "$RESOLVE_RESULT" | jq -e '.data.resolveReviewThread.thread.isResolved' > /dev/null 2>&1; then
+          echo "✅ Thread $THREAD_ID resolved successfully"
+        else
+          echo "⚠️ Warning: Failed to resolve thread $THREAD_ID"
+          echo "Error: $RESOLVE_RESULT"
+          echo "You can resolve manually in GitHub UI if needed"
+        fi
+
+        # Small delay to avoid rate limiting
+        sleep 0.5
+        ```
 
       **Option 2: DENY**
       - Provide clear rationale (e.g., "This conflicts with our sequential test pattern", "This would break idempotency", etc.)
@@ -51,7 +140,32 @@ EOF
 EOF
 )"
         ```
-      - Mark comment as resolved
+      - Resolve thread via GraphQL (same as ACCEPT):
+        ```bash
+        echo "Resolving thread $THREAD_ID..."
+        RESOLVE_RESULT=$(gh api graphql -f query='
+          mutation($threadId: ID!) {
+            resolveReviewThread(input: {threadId: $threadId}) {
+              thread {
+                id
+                isResolved
+              }
+            }
+          }
+        ' -F threadId="$THREAD_ID" 2>&1)
+
+        # Verify success
+        if echo "$RESOLVE_RESULT" | jq -e '.data.resolveReviewThread.thread.isResolved' > /dev/null 2>&1; then
+          echo "✅ Thread $THREAD_ID resolved successfully"
+        else
+          echo "⚠️ Warning: Failed to resolve thread $THREAD_ID"
+          echo "Error: $RESOLVE_RESULT"
+          echo "You can resolve manually in GitHub UI if needed"
+        fi
+
+        # Small delay to avoid rate limiting
+        sleep 0.5
+        ```
 
 4. After processing all findings:
    - If any implementations were made, commit changes:
@@ -78,11 +192,12 @@ EOF
 
 **Finding #N: [Brief description]**
 - **Location**: `file.go:line`
+- **Thread ID**: `PRRT_...`
 - **Copilot Suggestion**: [Summary of what Copilot suggested]
 - **Decision**: ✅ ACCEPTED / ❌ DENIED
 - **Action**: [What was implemented OR why it was denied]
-- **Reply Posted**: Yes (via `gh pr review --comment`)
-- **Status**: ✅ Resolved (or pending manual resolution in UI)
+- **Reply Posted**: ✅ Yes
+- **Thread Resolved**: ✅ Yes / ⚠️ Failed (manual resolution needed)
 
 ### Template for Individual Replies
 
@@ -137,29 +252,58 @@ gh api -X POST repos/{owner}/{repo}/pulls/comments/{comment_id}/replies \
 
 Note: Thread replies may not always work when replying to review comments (as opposed to issue comments) due to GitHub API limitations. Use `gh pr review --comment` as the primary method.
 
-### Mark as Resolved
+### Automatic Thread Resolution
 
-There is no direct built-in `gh` CLI command to mark conversations as resolved, but you can resolve review threads using the GitHub GraphQL API via `gh api`. Options:
+This command automatically resolves GitHub review threads after posting replies using the GraphQL `resolveReviewThread` mutation.
 
-1. **Use GraphQL API to resolve threads**:
+**How it works:**
+
+1. **Fetch threads upfront** (step 2):
+   - Single GraphQL query retrieves all review threads for the PR
+   - Each thread has a unique ID (format: `PRRT_kwDOQY85bs5kMu6k`)
+   - Threads contain comments, including Copilot's original finding
+   - Filter for threads where first comment author is "copilot" or "Copilot"
+
+2. **Process each finding** (step 3):
+   - Extract thread ID from thread data
+   - Check if already resolved (skip if true)
+   - Post reply comment
+   - Call `resolveReviewThread` GraphQL mutation
+   - Verify resolution succeeded
+   - Log any errors
+
+3. **GraphQL mutation**:
    ```bash
    gh api graphql -f query='
-     mutation {
-       resolveReviewThread(input: {threadId: "<thread_id>"}) {
+     mutation($threadId: ID!) {
+       resolveReviewThread(input: {threadId: $threadId}) {
          thread {
+           id
            isResolved
          }
        }
      }
-   '
+   ' -F threadId="$THREAD_ID"
    ```
-   Replace `<thread_id>` with the actual thread ID (you can fetch thread IDs using the GraphQL API).
 
-2. **Note in your reply** that the finding is addressed (✅ or ❌ emoji helps)
+**Key concepts:**
+- **Thread**: A conversation containing multiple comments
+- **Thread ID**: GraphQL node ID (format: `PRRT_...`)
+- **Resolution**: Marks the entire conversation as resolved in GitHub UI
+- **Graceful degradation**: Replies still post even if resolution fails
 
-3. **Manually resolve** in GitHub UI after posting replies
+**Error handling:**
+- Already resolved threads: Automatically skipped
+- Resolution failures: Logged with warning, doesn't stop processing
+- Manual fallback: Users can resolve in GitHub UI if needed
 
-4. **Copilot may auto-resolve** when it detects implementation
+**Permissions required:**
+- Repository > Contents: Read and Write, OR
+- Repository > Pull Requests: Read and Write
+
+**References:**
+- [GitHub GraphQL API - Mutations](https://docs.github.com/en/graphql/reference/mutations)
+- [Resolve PR conversations](https://stackoverflow.com/questions/71421045/)
 
 ## Summary Report
 

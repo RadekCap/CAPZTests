@@ -287,19 +287,25 @@ Review test files for compliance with repo patterns.
 **Example**: `/review-test test/03_kind_cluster_test.go`
 
 #### `/copilot-review`
-Process GitHub Copilot code review findings for a PR.
+Process GitHub Copilot code review findings for a PR and automatically resolve review threads.
 
 **Use when**: Responding to automated code review comments
 
 **What it does**:
-- Fetches all Copilot review comments for a PR
-- Analyzes each finding
+- Fetches all Copilot review threads via GraphQL API (includes thread IDs)
+- Analyzes each finding against repo patterns (CLAUDE.md)
 - Implements accepted fixes or provides denial rationale
-- Replies to each comment
-- Marks findings as resolved
+- Posts individual replies to each finding
+- **Automatically resolves review threads** using GraphQL `resolveReviewThread` mutation
 - Commits changes if implementations made
 
 **Example**: `/copilot-review 123`
+
+**Technical details**:
+- Uses GraphQL to fetch review threads (REST API doesn't include thread IDs)
+- Thread resolution requires Repository > Contents or Pull Requests permissions
+- Gracefully handles already-resolved threads and resolution failures
+- Replies always post even if thread resolution fails (graceful degradation)
 
 #### `/update-docs`
 Update documentation after code changes.
