@@ -53,7 +53,8 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 
 	// Run the generation script
 	t.Log("Running infrastructure generation script...")
-	output, err := RunCommand(t, "bash", genScriptPath, config.ClusterName)
+	outputDirName := fmt.Sprintf("%s-%s", config.ClusterName, config.Environment)
+	output, err := RunCommand(t, "bash", genScriptPath, outputDirName)
 	if err != nil {
 		t.Errorf("Failed to generate infrastructure resources: %v\nOutput: %s", err, output)
 		return
