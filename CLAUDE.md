@@ -334,6 +334,32 @@ Systematically debug test failures.
 
 **Example**: `/troubleshoot`
 
+#### `/implement-issue`
+Analyze a GitHub issue and automatically create a pull request with the implementation.
+
+**Use when**: You want to quickly implement a fix for an open GitHub issue
+
+**What it does**:
+- Fetches issue details from GitHub
+- Analyzes the issue to understand requirements
+- Creates a feature branch with appropriate naming
+- Implements the fix following repo patterns
+- Adds tests for new functionality
+- Runs tests to verify changes
+- Commits with descriptive message
+- Creates a pull request with comprehensive description
+- Links PR to issue with "Fixes #<number>"
+
+**Example**: `/implement-issue 72`
+
+**Features**:
+- Follows CLAUDE.md patterns and guidelines
+- Uses TodoWrite to track implementation progress
+- Handles git operations (branch creation, commits, push)
+- Validates tests pass before committing
+- Generates well-formatted commit messages and PR descriptions
+- Automatically references issue in commit and PR
+
 ### Using Slash Commands
 
 Simply type the command in Claude Code:
