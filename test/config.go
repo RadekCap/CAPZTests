@@ -3,7 +3,38 @@ package test
 import (
 	"fmt"
 	"os"
+	"sync"
 )
+
+var (
+	defaultRepoDir     string
+	defaultRepoDirOnce sync.Once
+)
+
+// getDefaultRepoDir returns a unique temporary directory path for the repository.
+// The path is generated once per test run to ensure consistency across all test phases.
+func getDefaultRepoDir() string {
+	defaultRepoDirOnce.Do(func() {
+		if dir := os.Getenv("ARO_REPO_DIR"); dir != "" {
+			defaultRepoDir = dir
+			return
+		}
+
+		// Create a unique temporary directory path using mktemp pattern
+		tmpDir, err := os.MkdirTemp("", "cluster-api-installer-aro-*")
+		if err != nil {
+			// Fallback to process-based unique name if mktemp fails
+			defaultRepoDir = fmt.Sprintf("/tmp/cluster-api-installer-aro-%d", os.Getpid())
+			return
+		}
+
+		// Remove the directory since git clone will create it
+		os.RemoveAll(tmpDir)
+		defaultRepoDir = tmpDir
+	})
+
+	return defaultRepoDir
+}
 
 // TestConfig holds configuration for ARO-CAPZ tests
 type TestConfig struct {
@@ -34,7 +65,7 @@ func NewTestConfig() *TestConfig {
 		// Repository defaults
 		RepoURL:    GetEnvOrDefault("ARO_REPO_URL", "https://github.com/RadekCap/cluster-api-installer.git"),
 		RepoBranch: GetEnvOrDefault("ARO_REPO_BRANCH", "ARO-ASO"),
-		RepoDir:    GetEnvOrDefault("ARO_REPO_DIR", "/tmp/cluster-api-installer-aro"),
+		RepoDir:    getDefaultRepoDir(),
 
 		// Cluster defaults
 		KindClusterName:   GetEnvOrDefault("KIND_CLUSTER_NAME", "capz-stage"),
