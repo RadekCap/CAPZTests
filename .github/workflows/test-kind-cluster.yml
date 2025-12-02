@@ -120,6 +120,57 @@ jobs:
         path: test-results/
         retention-days: 30
 
+    - name: Create GitHub issue on failure
+      if: failure() && github.event_name != 'pull_request'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Check if there's already an open issue for this workflow
+        WORKFLOW_NAME="Kind Cluster Preparation"
+        EXISTING_ISSUE=$(gh issue list --label "automated" --label "test-failure" --state open --search "in:title $WORKFLOW_NAME" --json number --jq '.[0].number')
+
+        if [ -n "$EXISTING_ISSUE" ]; then
+          echo "Issue already exists: #$EXISTING_ISSUE"
+          gh issue comment $EXISTING_ISSUE --body "Workflow failed again in run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        else
+          # Extract failed tests from JSON
+          FAILED_TESTS=""
+          if [ -f test-results/tests.json ]; then
+            FAILED_TESTS=$(jq -r 'select(.Test != null and .Action == "fail") | .Test' test-results/tests.json | head -5)
+          fi
+
+          # Create issue body
+          cat > issue_body.md << 'EOF'
+        ## Kind Cluster Preparation Workflow Failed
+
+        **Run URL:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        **Branch:** ${{ github.ref_name }}
+        **Commit:** ${{ github.sha }}
+        **Triggered by:** ${{ github.event_name }}
+
+        ### Failed Tests
+        EOF
+
+          if [ -n "$FAILED_TESTS" ]; then
+            echo '```' >> issue_body.md
+            echo "$FAILED_TESTS" >> issue_body.md
+            echo '```' >> issue_body.md
+          else
+            echo "No test results available" >> issue_body.md
+          fi
+
+          echo "" >> issue_body.md
+          echo "---" >> issue_body.md
+          echo "*This issue was automatically created by the CI workflow*" >> issue_body.md
+
+          # Create the issue
+          gh issue create \
+            --title "[$WORKFLOW_NAME] Workflow failed on ${{ github.ref_name }}" \
+            --body-file issue_body.md \
+            --label "automated" \
+            --label "test-failure"
+        fi
+
     - name: Fail if tests failed
       if: steps.test-run.outcome == 'failure'
       run: exit 1
