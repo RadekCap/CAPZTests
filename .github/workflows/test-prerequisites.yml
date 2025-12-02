@@ -107,7 +107,7 @@ jobs:
       run: |
         # Check if there's already an open issue for this workflow
         WORKFLOW_NAME="Test Prerequisites"
-        EXISTING_ISSUE=$(gh issue list --label "automated" --label "test-failure" --state open --search "in:title $WORKFLOW_NAME" --json number --jq '.[0].number')
+        EXISTING_ISSUE=$(gh issue list --label "automated" --label "test-failure" --state open --json number,title --jq ".[] | select(.title | contains(\"[$WORKFLOW_NAME]\")) | .number | select(. != null)" | head -1)
 
         if [ -n "$EXISTING_ISSUE" ]; then
           echo "Issue already exists: #$EXISTING_ISSUE"
@@ -120,7 +120,7 @@ jobs:
           fi
 
           # Create issue body
-          cat > issue_body.md << 'EOF'
+          cat > issue_body.md << EOF
         ## Test Prerequisites Workflow Failed
 
         **Run URL:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
