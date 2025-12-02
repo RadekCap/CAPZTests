@@ -12,9 +12,11 @@ jobs:
     permissions:
       pull-requests: write
       issues: write
+    if: github.event.pull_request.draft == false
 
     steps:
     - name: Assign PR to RadekCap
+      if: github.event.pull_request.head.repo.full_name == github.repository
       run: |
         echo "PR #${{ github.event.pull_request.number }} opened by ${{ github.event.pull_request.user.login }}"
         echo "Assigning to RadekCap..."
