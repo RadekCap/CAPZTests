@@ -77,8 +77,8 @@ Tests are configured via environment variables:
 
 ### Cluster Configuration
 
-- `KIND_CLUSTER_NAME` - Kind cluster name (default: `capz-stage`)
-- `CLUSTER_NAME` - ARO cluster name (default: `test-cluster`)
+- `KIND_CLUSTER_NAME` - Kind cluster name (default: `capz-tests-stage`)
+- `CLUSTER_NAME` - ARO cluster name (default: `capz-tests-cluster`)
 - `RESOURCE_GROUP` - Azure resource group
 - `OPENSHIFT_VERSION` - OpenShift version (default: `4.18`)
 - `REGION` - Azure region (default: `uksouth`)
@@ -181,7 +181,7 @@ To clean up test resources:
 
 ```bash
 # Delete Kind cluster
-kind delete cluster --name capz-stage
+kind delete cluster --name capz-tests-stage
 
 # Remove repository clone (if using temp directory)
 rm -rf /tmp/cluster-api-installer-aro
@@ -215,7 +215,7 @@ Check Kind cluster status:
 
 ```bash
 kind get clusters
-kubectl cluster-info --context kind-capz-stage
+kubectl cluster-info --context kind-capz-tests-stage
 ```
 
 ### Resource Application Failures
@@ -223,7 +223,7 @@ kubectl cluster-info --context kind-capz-stage
 Verify the management cluster is accessible and CAPI components are running:
 
 ```bash
-kubectl get pods -A --context kind-capz-stage
+kubectl get pods -A --context kind-capz-tests-stage
 ```
 
 ## CI/CD Integration

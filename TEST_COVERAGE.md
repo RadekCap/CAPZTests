@@ -73,7 +73,7 @@ The test suite provides end-to-end coverage of the Azure Red Hat OpenShift (ARO)
 - `TestKindCluster_CheckCAPIComponents` - Verifies CAPI installation
 
 **Resources Created**:
-- Kind cluster (default: `capz-stage`)
+- Kind cluster (default: `capz-tests-stage`)
 - CAPI controllers
 - CAPZ provider
 - Azure Service Operator
