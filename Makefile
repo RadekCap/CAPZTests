@@ -26,6 +26,16 @@ help: ## Display this help message
 	@echo ""
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Expected order for manual execution:"
+	@echo "  1. make test-prereq   - Verify prerequisites"
+	@echo "  2. make test-setup    - Setup repository"
+	@echo "  3. make test-kind     - Deploy Kind cluster"
+	@echo "  4. make test-infra    - Generate infrastructure"
+	@echo "  5. make test-deploy   - Monitor deployment"
+	@echo "  6. make test-verify   - Verify cluster"
+	@echo ""
+	@echo "Or run all phases sequentially with: make test-all"
 
 test: check-gotestsum ## Run all tests
 	@echo "=== Running All Tests ==="
