@@ -1,4 +1,4 @@
-.PHONY: test test-prereq test-setup test-kind test-infra test-deploy test-verify test-all test-short clean help
+.PHONY: test _test-prereq _test-setup _test-kind _test-infra _test-deploy _test-verify test-all test-short clean help
 
 # Default values
 CLUSTER_NAME ?= test-cluster
@@ -35,16 +35,6 @@ help: ## Display this help message
 	@echo ""
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
-	@echo ""
-	@echo "Expected order for manual execution:"
-	@echo "  1. make test-prereq   - Prerequisites verification"
-	@echo "  2. make test-setup    - Repository setup"
-	@echo "  3. make test-kind     - Kind cluster deployment"
-	@echo "  4. make test-infra    - Infrastructure generation"
-	@echo "  5. make test-deploy   - Deployment monitoring"
-	@echo "  6. make test-verify   - Cluster verification"
-	@echo ""
-	@echo "Or run all phases sequentially with: make test-all"
 
 test: check-gotestsum ## Run all tests
 	@mkdir -p $(RESULTS_DIR)
@@ -64,7 +54,7 @@ test-short: check-gotestsum ## Run quick tests only (skip long-running tests)
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-short.xml"
 
-test-prereq: check-gotestsum ## Run prerequisite verification tests only
+_test-prereq: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Prerequisites Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
@@ -73,7 +63,7 @@ test-prereq: check-gotestsum ## Run prerequisite verification tests only
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-prereq.xml"
 
-test-setup: check-gotestsum ## Run repository setup tests only
+_test-setup: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Repository Setup Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
@@ -82,7 +72,7 @@ test-setup: check-gotestsum ## Run repository setup tests only
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-setup.xml"
 
-test-kind: check-gotestsum ## Run Kind cluster deployment tests only
+_test-kind: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Kind Cluster Deployment Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
@@ -91,7 +81,7 @@ test-kind: check-gotestsum ## Run Kind cluster deployment tests only
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-kind.xml"
 
-test-infra: check-gotestsum ## Run infrastructure generation tests only
+_test-infra: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Infrastructure Generation Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
@@ -100,7 +90,7 @@ test-infra: check-gotestsum ## Run infrastructure generation tests only
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-infra.xml"
 
-test-deploy: check-gotestsum ## Run deployment monitoring tests only
+_test-deploy: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Deployment Monitoring Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
@@ -109,7 +99,7 @@ test-deploy: check-gotestsum ## Run deployment monitoring tests only
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-deploy.xml"
 
-test-verify: check-gotestsum ## Run cluster verification tests only
+_test-verify: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Cluster Verification Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
@@ -126,12 +116,12 @@ test-all: ## Run all test phases sequentially
 	@echo ""
 	@echo "All test results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(MAKE) --no-print-directory test-prereq && \
-	$(MAKE) --no-print-directory test-setup && \
-	$(MAKE) --no-print-directory test-kind && \
-	$(MAKE) --no-print-directory test-infra && \
-	$(MAKE) --no-print-directory test-deploy && \
-	$(MAKE) --no-print-directory test-verify && \
+	@$(MAKE) --no-print-directory _test-prereq && \
+	$(MAKE) --no-print-directory _test-setup && \
+	$(MAKE) --no-print-directory _test-kind && \
+	$(MAKE) --no-print-directory _test-infra && \
+	$(MAKE) --no-print-directory _test-deploy && \
+	$(MAKE) --no-print-directory _test-verify && \
 	echo "" && \
 	echo "=======================================" && \
 	echo "=== All Test Phases Completed Successfully ===" && \
