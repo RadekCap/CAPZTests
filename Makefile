@@ -14,6 +14,10 @@ ifeq (,$(filter $(GOTESTSUM_FORMAT),$(ALLOWED_FORMATS)))
   $(error Invalid GOTESTSUM_FORMAT "$(GOTESTSUM_FORMAT)". Allowed: $(ALLOWED_FORMATS))
 endif
 
+# Test verbosity configuration
+# Set to -v for verbose output (default), or empty string for quiet output
+TEST_VERBOSITY ?= -v
+
 # Results directory configuration
 # Create unique results directory for each test run using timestamp
 TIMESTAMP := $(shell date +%Y%m%d_%H%M%S)
@@ -47,7 +51,7 @@ test: check-gotestsum ## Run all tests
 	@echo "=== Running All Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-all.xml -- -v ./test -timeout 60m
+	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-all.xml -- $(TEST_VERBOSITY) ./test -timeout 60m
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-all.xml"
 
@@ -56,7 +60,7 @@ test-short: check-gotestsum ## Run quick tests only (skip long-running tests)
 	@echo "=== Running Quick Tests (Short Mode) ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-short.xml -- -v -short ./test
+	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-short.xml -- $(TEST_VERBOSITY) -short ./test
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-short.xml"
 
@@ -65,7 +69,7 @@ test-prereq: check-gotestsum ## Run prerequisite verification tests only
 	@echo "=== Running Prerequisites Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-prereq.xml -- -v ./test -run TestPrerequisites
+	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-prereq.xml -- $(TEST_VERBOSITY) ./test -run TestPrerequisites
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-prereq.xml"
 
@@ -74,7 +78,7 @@ test-setup: check-gotestsum ## Run repository setup tests only
 	@echo "=== Running Repository Setup Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-setup.xml -- -v ./test -run TestSetup
+	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-setup.xml -- $(TEST_VERBOSITY) ./test -run TestSetup
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-setup.xml"
 
@@ -83,7 +87,7 @@ test-kind: check-gotestsum ## Run Kind cluster deployment tests only
 	@echo "=== Running Kind Cluster Deployment Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-kind.xml -- -v ./test -run TestKindCluster -timeout 30m
+	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-kind.xml -- $(TEST_VERBOSITY) ./test -run TestKindCluster -timeout 30m
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-kind.xml"
 
@@ -92,7 +96,7 @@ test-infra: check-gotestsum ## Run infrastructure generation tests only
 	@echo "=== Running Infrastructure Generation Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-infra.xml -- -v ./test -run TestInfrastructure -timeout 20m
+	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-infra.xml -- $(TEST_VERBOSITY) ./test -run TestInfrastructure -timeout 20m
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-infra.xml"
 
@@ -101,7 +105,7 @@ test-deploy: check-gotestsum ## Run deployment monitoring tests only
 	@echo "=== Running Deployment Monitoring Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy.xml -- -v ./test -run TestDeployment -timeout 40m
+	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy.xml -- $(TEST_VERBOSITY) ./test -run TestDeployment -timeout 40m
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-deploy.xml"
 
@@ -110,7 +114,7 @@ test-verify: check-gotestsum ## Run cluster verification tests only
 	@echo "=== Running Cluster Verification Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-verify.xml -- -v ./test -run TestVerification -timeout 20m
+	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-verify.xml -- $(TEST_VERBOSITY) ./test -run TestVerification -timeout 20m
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-verify.xml"
 
