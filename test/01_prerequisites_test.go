@@ -74,8 +74,8 @@ func TestPrerequisites_Helm_IsAvailable(t *testing.T) {
 	t.Logf("Helm version: %s", output)
 }
 
-// TestPrerequisites_KindVersion verifies Kind is installed
-func TestPrerequisites_KindVersion(t *testing.T) {
+// TestPrerequisites_Kind_IsAvailable verifies Kind is installed
+func TestPrerequisites_Kind_IsAvailable(t *testing.T) {
 	output, err := RunCommand(t, "kind", "version")
 	if err != nil {
 		t.Errorf("Kind version check failed: %v", err)
