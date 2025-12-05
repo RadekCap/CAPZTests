@@ -41,7 +41,7 @@ help: ## Display this help message
 	@echo "  2. make _setup           # Setup and prepare input repositories with helm charts and CRDs"
 	@echo "  3. make _cluster         # Prepare cluster for testing, and prepare operators needed for testing"
 	@echo "  4. make _generate-yamls  # Generate script for resource creation (yaml)"
-	@echo "  5. make _deploy          # Deploy resources and verify deployment"
+	@echo "  5. make _deploy-crds     # Deploy CRDs and verify deployment"
 	@echo "  6. make _verify          # Verify deployed cluster"
 
 test: _check-dep ## Run check dependencies tests only
@@ -115,8 +115,7 @@ test-all: ## Run all test phases sequentially
 	$(MAKE) --no-print-directory _deploy-crds && \
 	$(MAKE) --no-print-directory _verify && \
 	echo "" && \
-	echo "=======================================" && \
-	echo "=== All Test Phases Completed Successfully ===" && \
+	echo "=======================================" && \	echo "=== All Test Phases Completed Successfully ===" && \
 	echo "=======================================" && \
 	echo "" && \
 	echo "All test results saved to: $(RESULTS_DIR)"
