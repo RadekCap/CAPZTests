@@ -134,6 +134,8 @@ All Makefile test targets automatically generate JUnit XML reports for test resu
 ```
 results/
 └── 20251205_093128/          # Timestamp: YYYYMMDD_HHMMSS
+    ├── junit-all.xml         # Full test suite results (from 'make test')
+    ├── junit-short.xml       # Short mode test results (from 'make test-short')
     ├── junit-prereq.xml      # Prerequisites test results
     ├── junit-setup.xml       # Setup test results
     ├── junit-kind.xml        # Kind cluster test results
