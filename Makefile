@@ -1,4 +1,4 @@
-.PHONY: test _check_dep _test-setup _test-kind _test-infra _test-deploy _test-verify test-all clean help
+.PHONY: test _test-check-dep _test-setup _test-kind _test-infra _test-deploy _test-verify test-all clean help
 
 # Default values
 CLUSTER_NAME ?= test-cluster
@@ -36,18 +36,11 @@ help: ## Display this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-test: check-gotestsum ## Run check dependencies tests only
+test: _test-check-dep ## Run check dependencies tests only
+
+_test-check-dep: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Check Dependencies Tests ==="
-	@echo "Results will be saved to: $(RESULTS_DIR)"
-	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-check-dep.xml -- $(TEST_VERBOSITY) ./test -run TestCheckDependencies
-	@echo ""
-	@echo "Test results saved to: $(RESULTS_DIR)/junit-check-dep.xml"
-
-_check_dep: check-gotestsum
-	@mkdir -p $(RESULTS_DIR)
-	@echo "=== Running Check Dependencies ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-check-dep.xml -- $(TEST_VERBOSITY) ./test -run TestCheckDependencies
@@ -107,7 +100,7 @@ test-all: ## Run all test phases sequentially
 	@echo ""
 	@echo "All test results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(MAKE) --no-print-directory _check_dep && \
+	@$(MAKE) --no-print-directory _test-check-dep && \
 	$(MAKE) --no-print-directory _test-setup && \
 	$(MAKE) --no-print-directory _test-kind && \
 	$(MAKE) --no-print-directory _test-infra && \

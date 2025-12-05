@@ -80,7 +80,7 @@ make test
 make test-all
 
 # Individual test phases (internal use - called by test-all)
-make _check_dep      # Check dependencies
+make _test-check-dep # Check dependencies
 make _test-setup     # Repository setup
 make _test-kind      # Kind cluster deployment
 make _test-infra     # Infrastructure generation
