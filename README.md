@@ -58,6 +58,7 @@ Tests are configured via environment variables:
 ### Test Behavior
 
 - `DEPLOYMENT_TIMEOUT` - Control plane deployment timeout (default: `30m`). Use Go duration format: `1h`, `45m`, `90m`, etc.
+- `TEST_VERBOSITY` - Test output verbosity (default: `-v` for verbose). Set to empty string for quiet output: `TEST_VERBOSITY= make test-prereq`
 
 ## Getting Started
 
@@ -104,6 +105,12 @@ make test-verify      # Cluster verification
 
 # Run quick tests (skip long-running operations)
 make test-short
+
+# Run tests with quiet output (no verbose flag)
+TEST_VERBOSITY= make test-prereq
+
+# Run tests with verbose output (default)
+TEST_VERBOSITY=-v make test-prereq
 ```
 
 **Note**: All test targets automatically generate JUnit XML reports in a timestamped `results/` directory. The path to the results directory is displayed when tests run.
