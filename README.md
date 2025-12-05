@@ -142,7 +142,7 @@ results/
     ├── junit-setup.xml            # Setup test results
     ├── junit-cluster.xml          # Cluster deployment test results
     ├── junit-generate-yamls.xml   # YAML generation test results
-    ├── junit-deploy.xml           # Deployment test results
+    ├── junit-deploy-crds.xml      # CRD deployment test results
     └── junit-verify.xml           # Verification test results
 ```
 
