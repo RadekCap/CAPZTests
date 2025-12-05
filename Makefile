@@ -35,6 +35,14 @@ help: ## Display this help message
 	@echo ""
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Expected order for manual execution of internal targets:"
+	@echo "  1. make _check-dep       # Check software prerequisites needed for a proper test run"
+	@echo "  2. make _setup           # Setup and prepare input repositories with helm charts and CRDs"
+	@echo "  3. make _cluster         # Prepare cluster for testing, and prepare operators needed for testing"
+	@echo "  4. make _generate-yamls  # Generate script for resource creation (yaml)"
+	@echo "  5. make _deploy          # Deploy resources and verify deployment"
+	@echo "  6. make _verify          # Verify deployed cluster"
 
 test: _check-dep ## Run check dependencies tests only
 
