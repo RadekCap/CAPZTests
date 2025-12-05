@@ -239,7 +239,7 @@ Centralized helpers in `helpers.go` ensure:
 
 - `go.mod` specifies invalid Go version 1.25.4 (should be 1.21 or 1.22)
 - `test/start_test.go` contains trivial test with unreachable code
-- Command injection vulnerability in `06_verification_test.go:61` (base64 decode)
+- Command injection vulnerability in `06_verification_test.go:68` (base64 decode)
 
 These are tracked issues and should be fixed in separate PRs when addressed.
 
