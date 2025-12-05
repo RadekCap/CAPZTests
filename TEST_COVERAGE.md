@@ -218,12 +218,14 @@ make test
 Prerequisite validation without deployment tests.
 
 ```bash
-make test  # Runs prerequisite tests only
+go test -v ./test -run TestPrerequisites
 ```
 
 **Duration**: < 2 minutes
 **Requirements**: Local tools and Azure CLI login
 **Coverage**: Prerequisites validation only
+
+**Note**: Since `make test-short` was removed, use the Go test command above to run only prerequisite tests. The `make test` target runs the complete test suite.
 
 ---
 
