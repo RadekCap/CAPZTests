@@ -68,7 +68,7 @@ func TestGetDefaultRepoDir_PathFormat(t *testing.T) {
 	}
 
 	// Verify stable path format (no PID or timestamp)
-	// Path format: /tmp/cluster-api-installer-aro
+	// Path format: <os.TempDir()>/cluster-api-installer-aro (e.g., /tmp/cluster-api-installer-aro on Linux, /var/folders/.../cluster-api-installer-aro on macOS)
 	expectedPath := os.TempDir() + "/cluster-api-installer-aro"
 	if config.RepoDir != expectedPath {
 		t.Errorf("Generated path should be %s, got: %s", expectedPath, config.RepoDir)
