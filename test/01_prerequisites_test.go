@@ -37,8 +37,8 @@ func TestPrerequisites_ToolAvailable(t *testing.T) {
 	}
 }
 
-// TestPrerequisites_AzureCLILogin_IsWorking checks if Azure CLI is logged in
-func TestPrerequisites_AzureCLILogin_IsWorking(t *testing.T) {
+// TestPrerequisites_AzureCLILogin_IsLoggedIn checks if Azure CLI is logged in
+func TestPrerequisites_AzureCLILogin_IsLoggedIn(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping Azure login check in short mode")
 	}
