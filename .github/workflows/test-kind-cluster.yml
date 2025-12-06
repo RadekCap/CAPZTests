@@ -1,4 +1,4 @@
-name: 03 Kind Cluster Preparation
+name: Cluster Preparation
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   test-kind:
-    name: 03 Kind Cluster Preparation
+    name: Cluster Preparation
     runs-on: ubuntu-latest
     permissions:
       contents: read

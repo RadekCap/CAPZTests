@@ -1,4 +1,4 @@
-name: 01 Check Dependencies
+name: Check Dependencies
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   check-dep:
-    name: 01 Check Dependencies
+    name: Check Dependencies
     runs-on: ubuntu-latest
 
     steps:
