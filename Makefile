@@ -22,11 +22,18 @@ TEST_VERBOSITY ?= -v
 # Create unique results directory for each test run using timestamp
 TIMESTAMP := $(shell date +%Y%m%d_%H%M%S)
 RESULTS_DIR := results/$(TIMESTAMP)
+LATEST_RESULTS_DIR := results/latest
 
 # Determine Go binary installation path
 # Prefer GOBIN if set, otherwise use GOPATH/bin, with fallback to $HOME/go/bin
 GOBIN := $(shell if [ -n "$$(go env GOBIN 2>/dev/null)" ]; then go env GOBIN; else echo "$$(go env GOPATH 2>/dev/null || echo "$$HOME/go")/bin"; fi)
 GOTESTSUM := $(GOBIN)/gotestsum --format='$(GOTESTSUM_FORMAT)'
+
+# Internal target to copy latest results
+.PHONY: _copy-latest-results
+_copy-latest-results:
+	@mkdir -p $(LATEST_RESULTS_DIR)
+	@cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true
 
 help: ## Display this help message
 	@echo "ARO-CAPZ Test Suite Makefile"
@@ -52,8 +59,10 @@ _check-dep: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-check-dep.xml -- $(TEST_VERBOSITY) ./test -run TestCheckDependencies
+	@$(MAKE) --no-print-directory _copy-latest-results
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-check-dep.xml"
+	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
 
 _setup: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
@@ -61,8 +70,10 @@ _setup: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-setup.xml -- $(TEST_VERBOSITY) ./test -run TestSetup
+	@$(MAKE) --no-print-directory _copy-latest-results
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-setup.xml"
+	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
 
 _cluster: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
@@ -70,8 +81,10 @@ _cluster: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-cluster.xml -- $(TEST_VERBOSITY) ./test -run TestKindCluster -timeout 30m
+	@$(MAKE) --no-print-directory _copy-latest-results
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-cluster.xml"
+	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
 
 _generate-yamls: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
@@ -79,8 +92,10 @@ _generate-yamls: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-generate-yamls.xml -- $(TEST_VERBOSITY) ./test -run TestInfrastructure -timeout 20m
+	@$(MAKE) --no-print-directory _copy-latest-results
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-generate-yamls.xml"
+	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
 
 _deploy-crds: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
@@ -88,8 +103,10 @@ _deploy-crds: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy-crds.xml -- $(TEST_VERBOSITY) ./test -run TestDeployment -timeout 40m
+	@$(MAKE) --no-print-directory _copy-latest-results
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-deploy-crds.xml"
+	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
 
 _verify: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
@@ -97,8 +114,10 @@ _verify: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-verify.xml -- $(TEST_VERBOSITY) ./test -run TestVerification -timeout 20m
+	@$(MAKE) --no-print-directory _copy-latest-results
 	@echo ""
 	@echo "Test results saved to: $(RESULTS_DIR)/junit-verify.xml"
+	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
 
 test-all: ## Run all test phases sequentially
 	@mkdir -p $(RESULTS_DIR)
@@ -118,7 +137,8 @@ test-all: ## Run all test phases sequentially
 	echo "=======================================" && \	echo "=== All Test Phases Completed Successfully ===" && \
 	echo "=======================================" && \
 	echo "" && \
-	echo "All test results saved to: $(RESULTS_DIR)"
+	echo "All test results saved to: $(RESULTS_DIR)" && \
+	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
 
 clean: ## Clean up test resources
 	@echo "Cleaning up test resources..."
