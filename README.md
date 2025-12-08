@@ -56,7 +56,7 @@ Tests are configured via environment variables:
 - `OPENSHIFT_VERSION` - OpenShift version (default: `4.18`)
 - `REGION` - Azure region (default: `uksouth`)
 - `AZURE_SUBSCRIPTION_NAME` - Azure subscription ID
-- `ENV` - Environment identifier (default: `stage`)
+- `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`)
 - `USER` - User identifier
 
 ### Test Behavior
@@ -127,7 +127,7 @@ go test -v ./test -run TestCheckDependencies
 go test -v ./test -run TestInfrastructure
 
 # Run with custom configuration
-ENV=prod \
+DEPLOYMENT_ENV=prod \
 WORKLOAD_CLUSTER_NAME=my-aro-cluster \
 REGION=westus2 \
 go test -v ./test -timeout 60m

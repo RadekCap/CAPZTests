@@ -216,7 +216,7 @@ CLUSTER_NAME=capz-tests-cluster
 RESOURCE_GROUP=capz-tests-rg
 OPENSHIFT_VERSION=4.18
 REGION=uksouth
-ENV=stage
+DEPLOYMENT_ENV=stage
 
 # Azure Configuration (set your actual values)
 # AZURE_SUBSCRIPTION_NAME=your-subscription-id

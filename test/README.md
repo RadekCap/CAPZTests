@@ -83,7 +83,7 @@ Tests are configured via environment variables:
 - `OPENSHIFT_VERSION` - OpenShift version (default: `4.18`)
 - `REGION` - Azure region (default: `uksouth`)
 - `AZURE_SUBSCRIPTION_NAME` - Azure subscription ID
-- `ENV` - Environment (stage/prod) (default: `stage`)
+- `DEPLOYMENT_ENV` - Deployment environment (stage/prod) (default: `stage`)
 - `USER` - User identifier
 
 ## Running Tests
@@ -113,7 +113,7 @@ go test -v ./test -run TestVerification
 ### Run with Custom Configuration
 
 ```bash
-ENV=prod \
+DEPLOYMENT_ENV=prod \
 WORKLOAD_CLUSTER_NAME=my-aro-cluster \
 REGION=westus2 \
 AZURE_SUBSCRIPTION_NAME=your-subscription-id \

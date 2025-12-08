@@ -1,7 +1,7 @@
 .PHONY: test _check-dep _setup _cluster _generate-yamls _deploy-crds _verify test-all clean help
 
 # Default values
-ENV ?= stage
+DEPLOYMENT_ENV ?= stage
 REGION ?= uksouth
 MANAGEMENT_CLUSTER_NAME ?= capz-stage
 

@@ -67,7 +67,7 @@ func NewTestConfig() *TestConfig {
 		OpenShiftVersion:      GetEnvOrDefault("OPENSHIFT_VERSION", "4.18"),
 		Region:                GetEnvOrDefault("REGION", "uksouth"),
 		AzureSubscription:     os.Getenv("AZURE_SUBSCRIPTION_NAME"),
-		Environment:           GetEnvOrDefault("ENV", "stage"),
+		Environment:           GetEnvOrDefault("DEPLOYMENT_ENV", "stage"),
 		User:                  GetEnvOrDefault("USER", os.Getenv("USER")),
 
 		// Paths

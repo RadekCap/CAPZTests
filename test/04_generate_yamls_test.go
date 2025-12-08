@@ -28,7 +28,7 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 	t.Logf("Generating infrastructure resources for cluster '%s' (env: %s)", config.WorkloadClusterName, config.Environment)
 
 	// Set environment variables for the generation script
-	SetEnvVar(t, "ENV", config.Environment)
+	SetEnvVar(t, "DEPLOYMENT_ENV", config.Environment)
 	SetEnvVar(t, "USER", config.User)
 	SetEnvVar(t, "WORKLOAD_CLUSTER_NAME", config.WorkloadClusterName)
 	SetEnvVar(t, "REGION", config.Region)
