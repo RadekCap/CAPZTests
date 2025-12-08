@@ -92,7 +92,7 @@ go test -v ./test -run TestCheckDependencies_ToolAvailable
 go test -v ./test -run TestInfrastructure
 
 # With custom configuration
-ENV=prod CLUSTER_NAME=my-cluster go test -v ./test -timeout 60m
+DEPLOYMENT_ENV=prod WORKLOAD_CLUSTER_NAME=my-cluster go test -v ./test -timeout 60m
 ```
 
 ### Repository Management
@@ -167,7 +167,7 @@ See `docs/INTEGRATION.md` for detailed integration patterns.
 - `OPENSHIFT_VERSION` - OpenShift version (default: `4.18`)
 - `REGION` - Azure region (default: `uksouth`)
 - `AZURE_SUBSCRIPTION_NAME` - Azure subscription ID (required for deployment)
-- `ENV` - Environment identifier (default: `stage`)
+- `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`)
 - `USER` - User identifier (default: current user)
 
 ### Test Behavior

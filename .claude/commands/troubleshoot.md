@@ -53,7 +53,7 @@ Verify environment variables:
 
 ```bash
 # Show current config
-env | grep -E "ARO|KIND|CLUSTER|AZURE|REGION|ENV|USER"
+env | grep -E "ARO|MANAGEMENT|WORKLOAD|CLUSTER|AZURE|REGION|DEPLOYMENT_ENV|USER"
 ```
 
 **Common Issues**:
