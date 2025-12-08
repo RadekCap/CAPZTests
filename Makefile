@@ -260,9 +260,9 @@ clean: ## Clean up test resources (interactive)
 		echo "Results directory not found (already clean)."; \
 	fi
 	@echo ""
-	@echo "========================================"
+	@echo "======================================="
 	@echo "=== Cleanup Complete ==="
-	@echo "========================================"
+	@echo "======================================="
 
 setup-submodule: ## Add cluster-api-installer as a git submodule
 	git submodule add -b ARO-ASO https://github.com/RadekCap/cluster-api-installer.git vendor/cluster-api-installer || true
