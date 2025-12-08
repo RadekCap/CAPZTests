@@ -16,9 +16,24 @@ func CommandExists(cmd string) bool {
 	return err == nil
 }
 
-// RunCommand executes a shell command and returns output and error
+// RunCommand executes a shell command and returns output and error.
+// In verbose mode (-v flag), the command being executed is printed to stderr
+// for immediate visibility.
 func RunCommand(t *testing.T, name string, args ...string) (string, error) {
 	t.Helper()
+
+	// Print command being executed to stderr when in verbose mode
+	cmdStr := name
+	if len(args) > 0 {
+		cmdStr = fmt.Sprintf("%s %s", name, strings.Join(args, " "))
+	}
+	if testing.Verbose() {
+		fmt.Fprintf(os.Stderr, "Running: %s\n", cmdStr)
+	}
+
+	// Also log to test output
+	t.Logf("Executing command: %s", cmdStr)
+
 	cmd := exec.Command(name, args...)
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
