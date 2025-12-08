@@ -22,13 +22,14 @@ func CommandExists(cmd string) bool {
 func RunCommand(t *testing.T, name string, args ...string) (string, error) {
 	t.Helper()
 
-	// Print command being executed to stderr for immediate visibility in verbose mode
+	// Print command being executed to stderr when in verbose mode
 	cmdStr := name
 	if len(args) > 0 {
 		cmdStr = fmt.Sprintf("%s %s", name, strings.Join(args, " "))
 	}
-	fmt.Fprintf(os.Stderr, "Running: %s\n", cmdStr)
-	os.Stderr.Sync() // Force immediate output
+	if testing.Verbose() {
+		fmt.Fprintf(os.Stderr, "Running: %s\n", cmdStr)
+	}
 
 	// Also log to test output
 	t.Logf("Executing command: %s", cmdStr)
