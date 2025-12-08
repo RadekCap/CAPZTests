@@ -51,7 +51,7 @@ func TestCheckDependencies_AzureCLILogin_IsLoggedIn(t *testing.T) {
 		return
 	}
 
-	// Successfully logged in - don't log output as it contains sensitive information (tenant ID, subscription ID)
+	// Successfully logged in - Don't log output as it contains sensitive information (tenant ID, subscription ID)
 	t.Log("Azure CLI is logged in")
 }
 
