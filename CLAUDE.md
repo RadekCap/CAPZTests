@@ -161,8 +161,8 @@ See `docs/INTEGRATION.md` for detailed integration patterns.
 - `ARO_REPO_DIR` - Local path (default: `/tmp/cluster-api-installer-aro`)
 
 ### Cluster Configuration
-- `KIND_CLUSTER_NAME` - Management cluster name (default: `capz-tests-stage`)
-- `CLUSTER_NAME` - ARO cluster name (default: `capz-tests-cluster`)
+- `MANAGEMENT_CLUSTER_NAME` - Management cluster name (default: `capz-tests-stage`)
+- `WORKLOAD_CLUSTER_NAME` - ARO workload cluster name (default: `capz-tests-cluster`)
 - `RESOURCE_GROUP` - Azure resource group
 - `OPENSHIFT_VERSION` - OpenShift version (default: `4.18`)
 - `REGION` - Azure region (default: `uksouth`)

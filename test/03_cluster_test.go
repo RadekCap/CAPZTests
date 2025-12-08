@@ -21,8 +21,8 @@ func TestKindCluster_Deploy(t *testing.T) {
 	// Check if cluster already exists
 	t.Log("Checking for existing Kind cluster")
 	output, _ := RunCommand(t, "kind", "get", "clusters")
-	if strings.Contains(output, config.KindClusterName) {
-		t.Logf("Kind cluster '%s' already exists", config.KindClusterName)
+	if strings.Contains(output, config.ManagementClusterName) {
+		t.Logf("Kind cluster '%s' already exists", config.ManagementClusterName)
 		return
 	}
 
@@ -33,10 +33,10 @@ func TestKindCluster_Deploy(t *testing.T) {
 		return
 	}
 
-	t.Logf("Deploying Kind cluster '%s' using script", config.KindClusterName)
+	t.Logf("Deploying Kind cluster '%s' using script", config.ManagementClusterName)
 
 	// Set environment variable for the script
-	SetEnvVar(t, "KIND_CLUSTER_NAME", config.KindClusterName)
+	SetEnvVar(t, "MANAGEMENT_CLUSTER_NAME", config.ManagementClusterName)
 
 	// Change to repository directory for script execution
 	originalDir, err := os.Getwd()
@@ -72,11 +72,11 @@ func TestKindCluster_Verify(t *testing.T) {
 		return
 	}
 
-	if !strings.Contains(output, config.KindClusterName) {
-		t.Skipf("Kind cluster '%s' not found. Run deployment test first.", config.KindClusterName)
+	if !strings.Contains(output, config.ManagementClusterName) {
+		t.Skipf("Kind cluster '%s' not found. Run deployment test first.", config.ManagementClusterName)
 	}
 
-	t.Logf("Kind cluster '%s' exists", config.KindClusterName)
+	t.Logf("Kind cluster '%s' exists", config.ManagementClusterName)
 
 	// Verify cluster is accessible via kubectl
 	t.Log("Verifying cluster accessibility...")
@@ -84,7 +84,7 @@ func TestKindCluster_Verify(t *testing.T) {
 	// Set kubeconfig context
 	SetEnvVar(t, "KUBECONFIG", fmt.Sprintf("%s/.kube/config", os.Getenv("HOME")))
 
-	output, err = RunCommand(t, "kubectl", "--context", fmt.Sprintf("kind-%s", config.KindClusterName), "get", "nodes")
+	output, err = RunCommand(t, "kubectl", "--context", fmt.Sprintf("kind-%s", config.ManagementClusterName), "get", "nodes")
 	if err != nil {
 		t.Errorf("Failed to access Kind cluster nodes: %v\nOutput: %s", err, output)
 		return
@@ -100,7 +100,7 @@ func TestKindCluster_CAPIComponents(t *testing.T) {
 
 	t.Log("Checking for CAPI components...")
 
-	context := fmt.Sprintf("kind-%s", config.KindClusterName)
+	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
 
 	// Check for CAPI namespaces
 	expectedNamespaces := []string{

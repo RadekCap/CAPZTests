@@ -77,8 +77,8 @@ Tests are configured via environment variables:
 
 ### Cluster Configuration
 
-- `KIND_CLUSTER_NAME` - Kind cluster name (default: `capz-tests-stage`)
-- `CLUSTER_NAME` - ARO cluster name (default: `capz-tests-cluster`)
+- `MANAGEMENT_CLUSTER_NAME` - Management cluster name (default: `capz-tests-stage`)
+- `WORKLOAD_CLUSTER_NAME` - ARO workload cluster name (default: `capz-tests-cluster`)
 - `RESOURCE_GROUP` - Azure resource group
 - `OPENSHIFT_VERSION` - OpenShift version (default: `4.18`)
 - `REGION` - Azure region (default: `uksouth`)
@@ -114,7 +114,7 @@ go test -v ./test -run TestVerification
 
 ```bash
 ENV=prod \
-CLUSTER_NAME=my-aro-cluster \
+WORKLOAD_CLUSTER_NAME=my-aro-cluster \
 REGION=westus2 \
 AZURE_SUBSCRIPTION_NAME=your-subscription-id \
 go test -v ./test

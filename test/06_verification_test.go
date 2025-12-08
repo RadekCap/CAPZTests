@@ -13,15 +13,15 @@ import (
 func TestVerification_RetrieveKubeconfig(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.KindClusterName)
+	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
 
 	// Kubeconfig output path
-	kubeconfigPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s-kubeconfig.yaml", config.ClusterName))
+	kubeconfigPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s-kubeconfig.yaml", config.WorkloadClusterName))
 
-	t.Logf("Retrieving kubeconfig for cluster '%s'", config.ClusterName)
+	t.Logf("Retrieving kubeconfig for cluster '%s'", config.WorkloadClusterName)
 
 	// Method 1: Using kubectl to get secret
-	secretName := fmt.Sprintf("%s-kubeconfig", config.ClusterName)
+	secretName := fmt.Sprintf("%s-kubeconfig", config.WorkloadClusterName)
 
 	t.Logf("Attempting Method 1: kubectl --context %s get secret %s -o jsonpath={.data.value}", context, secretName)
 	output, err := RunCommand(t, "kubectl", "--context", context, "get", "secret",
@@ -37,9 +37,9 @@ func TestVerification_RetrieveKubeconfig(t *testing.T) {
 		}
 
 		if FileExists(clusterctlPath) || CommandExists("clusterctl") {
-			t.Logf("Attempting Method 2: %s get kubeconfig %s", clusterctlPath, config.ClusterName)
+			t.Logf("Attempting Method 2: %s get kubeconfig %s", clusterctlPath, config.WorkloadClusterName)
 
-			output, err = RunCommand(t, clusterctlPath, "get", "kubeconfig", config.ClusterName)
+			output, err = RunCommand(t, clusterctlPath, "get", "kubeconfig", config.WorkloadClusterName)
 			if err != nil {
 				t.Errorf("Both kubeconfig retrieval methods failed: %v", err)
 				return

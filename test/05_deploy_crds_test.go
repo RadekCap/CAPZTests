@@ -51,18 +51,18 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 	}
 
 	// Set kubectl context to Kind cluster
-	context := fmt.Sprintf("kind-%s", config.KindClusterName)
+	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
 	SetEnvVar(t, "KUBECONFIG", fmt.Sprintf("%s/.kube/config", os.Getenv("HOME")))
 
 	// First, check if cluster resource exists
 	fmt.Fprintf(os.Stderr, "\n=== Monitoring cluster deployment ===\n")
-	fmt.Fprintf(os.Stderr, "Cluster: %s\n", config.ClusterName)
+	fmt.Fprintf(os.Stderr, "Cluster: %s\n", config.WorkloadClusterName)
 	fmt.Fprintf(os.Stderr, "Context: %s\n", context)
 	fmt.Fprintf(os.Stderr, "\nChecking if cluster resource exists...\n")
 	os.Stderr.Sync() // Force immediate output
-	t.Logf("Checking for cluster resource: %s", config.ClusterName)
+	t.Logf("Checking for cluster resource: %s", config.WorkloadClusterName)
 
-	output, err := RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.ClusterName)
+	output, err := RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.WorkloadClusterName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "⚠️  Cluster resource not found (may not be deployed yet)\n\n")
 		os.Stderr.Sync() // Force immediate output
@@ -75,12 +75,12 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 
 	// Use clusterctl to describe the cluster
 	fmt.Fprintf(os.Stderr, "\n📊 Fetching cluster status with clusterctl...\n")
-	fmt.Fprintf(os.Stderr, "Running: %s describe cluster %s --show-conditions=all\n", clusterctlPath, config.ClusterName)
+	fmt.Fprintf(os.Stderr, "Running: %s describe cluster %s --show-conditions=all\n", clusterctlPath, config.WorkloadClusterName)
 	fmt.Fprintf(os.Stderr, "This may take a few moments...\n")
 	os.Stderr.Sync() // Force immediate output
 	t.Logf("Monitoring cluster deployment status using clusterctl...")
 
-	output, err = RunCommand(t, clusterctlPath, "describe", "cluster", config.ClusterName, "--show-conditions=all")
+	output, err = RunCommand(t, clusterctlPath, "describe", "cluster", config.WorkloadClusterName, "--show-conditions=all")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\n⚠️  clusterctl describe failed (cluster may still be initializing)\n")
 		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
@@ -101,7 +101,7 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 func TestDeployment_WaitForControlPlane(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.KindClusterName)
+	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
 
 	// Wait for control plane to be ready (with timeout)
 	timeout := 30 * time.Minute
@@ -146,12 +146,12 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 func TestDeployment_CheckClusterConditions(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.KindClusterName)
+	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
 
 	t.Log("Checking cluster conditions...")
 
 	// Check cluster status
-	output, err := RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.ClusterName, "-o", "yaml")
+	output, err := RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.WorkloadClusterName, "-o", "yaml")
 	if err != nil {
 		t.Errorf("Failed to get cluster status: %v", err)
 		return
@@ -167,7 +167,7 @@ func TestDeployment_CheckClusterConditions(t *testing.T) {
 	}
 
 	// Check for infrastructure ready condition
-	output, err = RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.ClusterName,
+	output, err = RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.WorkloadClusterName,
 		"-o", "jsonpath={.status.conditions[?(@.type=='InfrastructureReady')].status}")
 
 	if err == nil && strings.TrimSpace(output) != "" {
@@ -175,7 +175,7 @@ func TestDeployment_CheckClusterConditions(t *testing.T) {
 	}
 
 	// Check for control plane ready condition
-	output, err = RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.ClusterName,
+	output, err = RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.WorkloadClusterName,
 		"-o", "jsonpath={.status.conditions[?(@.type=='ControlPlaneReady')].status}")
 
 	if err == nil && strings.TrimSpace(output) != "" {

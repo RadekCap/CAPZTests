@@ -1,10 +1,9 @@
 .PHONY: test _check-dep _setup _cluster _generate-yamls _deploy-crds _verify test-all clean help
 
 # Default values
-CLUSTER_NAME ?= test-cluster
 ENV ?= stage
 REGION ?= uksouth
-KIND_CLUSTER_NAME ?= capz-stage
+MANAGEMENT_CLUSTER_NAME ?= capz-stage
 
 # Test configuration
 GOTESTSUM_FORMAT ?= testname
@@ -204,19 +203,19 @@ clean: ## Clean up test resources (interactive)
 	@echo "This will guide you through cleaning up test resources."
 	@echo "You can choose what to delete."
 	@echo ""
-	@# Check if Kind cluster exists
-	@if kind get clusters 2>/dev/null | grep -q "^$(KIND_CLUSTER_NAME)$$"; then \
-		echo "Kind cluster '$(KIND_CLUSTER_NAME)' exists."; \
-		read -p "Delete Kind cluster '$(KIND_CLUSTER_NAME)'? [y/N] " -n 1 -r; \
+	@# Check if management cluster exists
+	@if kind get clusters 2>/dev/null | grep -q "^$(MANAGEMENT_CLUSTER_NAME)$$"; then \
+		echo "Management cluster '$(MANAGEMENT_CLUSTER_NAME)' exists."; \
+		read -p "Delete management cluster '$(MANAGEMENT_CLUSTER_NAME)'? [y/N] " -n 1 -r; \
 		echo ""; \
 		if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-			echo "Deleting Kind cluster..."; \
-			kind delete cluster --name $(KIND_CLUSTER_NAME) || echo "Failed to delete cluster"; \
+			echo "Deleting management cluster..."; \
+			kind delete cluster --name $(MANAGEMENT_CLUSTER_NAME) || echo "Failed to delete cluster"; \
 		else \
-			echo "Skipped Kind cluster deletion."; \
+			echo "Skipped management cluster deletion."; \
 		fi; \
 	else \
-		echo "Kind cluster '$(KIND_CLUSTER_NAME)' not found (already clean)."; \
+		echo "Management cluster '$(MANAGEMENT_CLUSTER_NAME)' not found (already clean)."; \
 	fi
 	@echo ""
 	@# Check if cluster-api-installer directory exists

@@ -37,14 +37,14 @@ type TestConfig struct {
 	RepoDir    string
 
 	// Cluster configuration
-	KindClusterName   string
-	ClusterName       string
-	ResourceGroup     string
-	OpenShiftVersion  string
-	Region            string
-	AzureSubscription string
-	Environment       string
-	User              string
+	ManagementClusterName string
+	WorkloadClusterName   string
+	ResourceGroup         string
+	OpenShiftVersion      string
+	Region                string
+	AzureSubscription     string
+	Environment           string
+	User                  string
 
 	// Paths
 	ClusterctlBinPath string
@@ -61,14 +61,14 @@ func NewTestConfig() *TestConfig {
 		RepoDir:    getDefaultRepoDir(),
 
 		// Cluster defaults
-		KindClusterName:   GetEnvOrDefault("KIND_CLUSTER_NAME", "capz-tests-stage"),
-		ClusterName:       GetEnvOrDefault("CLUSTER_NAME", "capz-tests-cluster"),
-		ResourceGroup:     GetEnvOrDefault("RESOURCE_GROUP", "capz-tests-rg"),
-		OpenShiftVersion:  GetEnvOrDefault("OPENSHIFT_VERSION", "4.18"),
-		Region:            GetEnvOrDefault("REGION", "uksouth"),
-		AzureSubscription: os.Getenv("AZURE_SUBSCRIPTION_NAME"),
-		Environment:       GetEnvOrDefault("ENV", "stage"),
-		User:              GetEnvOrDefault("USER", os.Getenv("USER")),
+		ManagementClusterName: GetEnvOrDefault("MANAGEMENT_CLUSTER_NAME", "capz-tests-stage"),
+		WorkloadClusterName:   GetEnvOrDefault("WORKLOAD_CLUSTER_NAME", "capz-tests-cluster"),
+		ResourceGroup:         GetEnvOrDefault("RESOURCE_GROUP", "capz-tests-rg"),
+		OpenShiftVersion:      GetEnvOrDefault("OPENSHIFT_VERSION", "4.18"),
+		Region:                GetEnvOrDefault("REGION", "uksouth"),
+		AzureSubscription:     os.Getenv("AZURE_SUBSCRIPTION_NAME"),
+		Environment:           GetEnvOrDefault("ENV", "stage"),
+		User:                  GetEnvOrDefault("USER", os.Getenv("USER")),
 
 		// Paths
 		ClusterctlBinPath: GetEnvOrDefault("CLUSTERCTL_BIN", "./bin/clusterctl"),
@@ -79,5 +79,5 @@ func NewTestConfig() *TestConfig {
 
 // GetOutputDirName returns the output directory name for generated infrastructure files
 func (c *TestConfig) GetOutputDirName() string {
-	return fmt.Sprintf("%s-%s", c.ClusterName, c.Environment)
+	return fmt.Sprintf("%s-%s", c.WorkloadClusterName, c.Environment)
 }

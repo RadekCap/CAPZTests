@@ -25,12 +25,12 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 	// Output directory for generated resources
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
-	t.Logf("Generating infrastructure resources for cluster '%s' (env: %s)", config.ClusterName, config.Environment)
+	t.Logf("Generating infrastructure resources for cluster '%s' (env: %s)", config.WorkloadClusterName, config.Environment)
 
 	// Set environment variables for the generation script
 	SetEnvVar(t, "ENV", config.Environment)
 	SetEnvVar(t, "USER", config.User)
-	SetEnvVar(t, "CLUSTER_NAME", config.ClusterName)
+	SetEnvVar(t, "WORKLOAD_CLUSTER_NAME", config.WorkloadClusterName)
 	SetEnvVar(t, "REGION", config.Region)
 
 	if config.AzureSubscription != "" {
@@ -123,7 +123,7 @@ func TestInfrastructure_ApplyResources(t *testing.T) {
 	}
 
 	// Set kubectl context to Kind cluster
-	context := fmt.Sprintf("kind-%s", config.KindClusterName)
+	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
 
 	originalDir, err := os.Getwd()
 	if err != nil {
