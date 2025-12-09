@@ -67,10 +67,10 @@ _check-dep: check-gotestsum
 	@echo "=== Running Check Dependencies Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@set -e; \
-	EXIT_CODE=0; \
+	@EXIT_CODE=0; \
 	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-check-dep.xml -- $(TEST_VERBOSITY) ./test -run TestCheckDependencies || EXIT_CODE=$$?; \
-	$(MAKE) --no-print-directory _copy-latest-results; \
+	mkdir -p $(LATEST_RESULTS_DIR); \
+	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-check-dep.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -87,10 +87,10 @@ _setup: check-gotestsum
 	@echo "=== Running Repository Setup Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@set -e; \
-	EXIT_CODE=0; \
+	@EXIT_CODE=0; \
 	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-setup.xml -- $(TEST_VERBOSITY) ./test -run TestSetup || EXIT_CODE=$$?; \
-	$(MAKE) --no-print-directory _copy-latest-results; \
+	mkdir -p $(LATEST_RESULTS_DIR); \
+	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-setup.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -107,10 +107,10 @@ _cluster: check-gotestsum
 	@echo "=== Running Cluster Deployment Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@set -e; \
-	EXIT_CODE=0; \
+	@EXIT_CODE=0; \
 	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-cluster.xml -- $(TEST_VERBOSITY) ./test -run TestKindCluster -timeout $(CLUSTER_TIMEOUT) || EXIT_CODE=$$?; \
-	$(MAKE) --no-print-directory _copy-latest-results; \
+	mkdir -p $(LATEST_RESULTS_DIR); \
+	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-cluster.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -127,10 +127,10 @@ _generate-yamls: check-gotestsum
 	@echo "=== Running YAML Generation Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@set -e; \
-	EXIT_CODE=0; \
+	@EXIT_CODE=0; \
 	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-generate-yamls.xml -- $(TEST_VERBOSITY) ./test -run TestInfrastructure -timeout $(GENERATE_YAMLS_TIMEOUT) || EXIT_CODE=$$?; \
-	$(MAKE) --no-print-directory _copy-latest-results; \
+	mkdir -p $(LATEST_RESULTS_DIR); \
+	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-generate-yamls.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -147,10 +147,10 @@ _deploy-crs: check-gotestsum
 	@echo "=== Running CR Deployment Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@set -e; \
-	EXIT_CODE=0; \
+	@EXIT_CODE=0; \
 	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy-crs.xml -- $(TEST_VERBOSITY) ./test -run TestDeployment -timeout $(DEPLOY_CRS_TIMEOUT) || EXIT_CODE=$$?; \
-	$(MAKE) --no-print-directory _copy-latest-results; \
+	mkdir -p $(LATEST_RESULTS_DIR); \
+	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-deploy-crs.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -167,10 +167,10 @@ _verify: check-gotestsum
 	@echo "=== Running Cluster Verification Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@set -e; \
-	EXIT_CODE=0; \
+	@EXIT_CODE=0; \
 	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-verify.xml -- $(TEST_VERBOSITY) ./test -run TestVerification -timeout $(VERIFY_TIMEOUT) || EXIT_CODE=$$?; \
-	$(MAKE) --no-print-directory _copy-latest-results; \
+	mkdir -p $(LATEST_RESULTS_DIR); \
+	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-verify.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
