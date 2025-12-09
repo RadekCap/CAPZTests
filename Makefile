@@ -67,78 +67,120 @@ _check-dep: check-gotestsum
 	@echo "=== Running Check Dependencies Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-check-dep.xml -- $(TEST_VERBOSITY) ./test -run TestCheckDependencies
-	@$(MAKE) --no-print-directory _copy-latest-results
-	@echo ""
-	@echo "Test results saved to: $(RESULTS_DIR)/junit-check-dep.xml"
-	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
-	@echo "✅ Check Dependencies Tests completed"
-	@echo ""
+	@set -e; \
+	EXIT_CODE=0; \
+	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-check-dep.xml -- $(TEST_VERBOSITY) ./test -run TestCheckDependencies || EXIT_CODE=$$?; \
+	$(MAKE) --no-print-directory _copy-latest-results; \
+	echo ""; \
+	echo "Test results saved to: $(RESULTS_DIR)/junit-check-dep.xml"; \
+	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
+	if [ $$EXIT_CODE -eq 0 ]; then \
+		echo "✅ Check Dependencies Tests completed"; \
+	else \
+		echo "❌ Check Dependencies Tests failed"; \
+	fi; \
+	echo ""; \
+	exit $$EXIT_CODE
 
 _setup: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Repository Setup Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-setup.xml -- $(TEST_VERBOSITY) ./test -run TestSetup
-	@$(MAKE) --no-print-directory _copy-latest-results
-	@echo ""
-	@echo "Test results saved to: $(RESULTS_DIR)/junit-setup.xml"
-	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
-	@echo "✅ Repository Setup Tests completed"
-	@echo ""
+	@set -e; \
+	EXIT_CODE=0; \
+	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-setup.xml -- $(TEST_VERBOSITY) ./test -run TestSetup || EXIT_CODE=$$?; \
+	$(MAKE) --no-print-directory _copy-latest-results; \
+	echo ""; \
+	echo "Test results saved to: $(RESULTS_DIR)/junit-setup.xml"; \
+	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
+	if [ $$EXIT_CODE -eq 0 ]; then \
+		echo "✅ Repository Setup Tests completed"; \
+	else \
+		echo "❌ Repository Setup Tests failed"; \
+	fi; \
+	echo ""; \
+	exit $$EXIT_CODE
 
 _cluster: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Cluster Deployment Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-cluster.xml -- $(TEST_VERBOSITY) ./test -run TestKindCluster -timeout $(CLUSTER_TIMEOUT)
-	@$(MAKE) --no-print-directory _copy-latest-results
-	@echo ""
-	@echo "Test results saved to: $(RESULTS_DIR)/junit-cluster.xml"
-	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
-	@echo "✅ Cluster Deployment Tests completed"
-	@echo ""
+	@set -e; \
+	EXIT_CODE=0; \
+	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-cluster.xml -- $(TEST_VERBOSITY) ./test -run TestKindCluster -timeout $(CLUSTER_TIMEOUT) || EXIT_CODE=$$?; \
+	$(MAKE) --no-print-directory _copy-latest-results; \
+	echo ""; \
+	echo "Test results saved to: $(RESULTS_DIR)/junit-cluster.xml"; \
+	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
+	if [ $$EXIT_CODE -eq 0 ]; then \
+		echo "✅ Cluster Deployment Tests completed"; \
+	else \
+		echo "❌ Cluster Deployment Tests failed"; \
+	fi; \
+	echo ""; \
+	exit $$EXIT_CODE
 
 _generate-yamls: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running YAML Generation Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-generate-yamls.xml -- $(TEST_VERBOSITY) ./test -run TestInfrastructure -timeout $(GENERATE_YAMLS_TIMEOUT)
-	@$(MAKE) --no-print-directory _copy-latest-results
-	@echo ""
-	@echo "Test results saved to: $(RESULTS_DIR)/junit-generate-yamls.xml"
-	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
-	@echo "✅ YAML Generation Tests completed"
-	@echo ""
+	@set -e; \
+	EXIT_CODE=0; \
+	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-generate-yamls.xml -- $(TEST_VERBOSITY) ./test -run TestInfrastructure -timeout $(GENERATE_YAMLS_TIMEOUT) || EXIT_CODE=$$?; \
+	$(MAKE) --no-print-directory _copy-latest-results; \
+	echo ""; \
+	echo "Test results saved to: $(RESULTS_DIR)/junit-generate-yamls.xml"; \
+	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
+	if [ $$EXIT_CODE -eq 0 ]; then \
+		echo "✅ YAML Generation Tests completed"; \
+	else \
+		echo "❌ YAML Generation Tests failed"; \
+	fi; \
+	echo ""; \
+	exit $$EXIT_CODE
 
 _deploy-crs: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running CR Deployment Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy-crs.xml -- $(TEST_VERBOSITY) ./test -run TestDeployment -timeout $(DEPLOY_CRS_TIMEOUT)
-	@$(MAKE) --no-print-directory _copy-latest-results
-	@echo ""
-	@echo "Test results saved to: $(RESULTS_DIR)/junit-deploy-crs.xml"
-	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
-	@echo "✅ CR Deployment Tests completed"
-	@echo ""
+	@set -e; \
+	EXIT_CODE=0; \
+	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy-crs.xml -- $(TEST_VERBOSITY) ./test -run TestDeployment -timeout $(DEPLOY_CRS_TIMEOUT) || EXIT_CODE=$$?; \
+	$(MAKE) --no-print-directory _copy-latest-results; \
+	echo ""; \
+	echo "Test results saved to: $(RESULTS_DIR)/junit-deploy-crs.xml"; \
+	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
+	if [ $$EXIT_CODE -eq 0 ]; then \
+		echo "✅ CR Deployment Tests completed"; \
+	else \
+		echo "❌ CR Deployment Tests failed"; \
+	fi; \
+	echo ""; \
+	exit $$EXIT_CODE
 
 _verify: check-gotestsum
 	@mkdir -p $(RESULTS_DIR)
 	@echo "=== Running Cluster Verification Tests ==="
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
-	@$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-verify.xml -- $(TEST_VERBOSITY) ./test -run TestVerification -timeout $(VERIFY_TIMEOUT)
-	@$(MAKE) --no-print-directory _copy-latest-results
-	@echo ""
-	@echo "Test results saved to: $(RESULTS_DIR)/junit-verify.xml"
-	@echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"
-	@echo "✅ Cluster Verification Tests completed"
-	@echo ""
+	@set -e; \
+	EXIT_CODE=0; \
+	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-verify.xml -- $(TEST_VERBOSITY) ./test -run TestVerification -timeout $(VERIFY_TIMEOUT) || EXIT_CODE=$$?; \
+	$(MAKE) --no-print-directory _copy-latest-results; \
+	echo ""; \
+	echo "Test results saved to: $(RESULTS_DIR)/junit-verify.xml"; \
+	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
+	if [ $$EXIT_CODE -eq 0 ]; then \
+		echo "✅ Cluster Verification Tests completed"; \
+	else \
+		echo "❌ Cluster Verification Tests failed"; \
+	fi; \
+	echo ""; \
+	exit $$EXIT_CODE
 
 test-all: ## Run all test phases sequentially
 	@mkdir -p $(RESULTS_DIR)
