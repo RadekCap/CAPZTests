@@ -171,6 +171,29 @@ func GetEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// PrintTestHeader prints a clear test identification header to both terminal and test log.
+// This helps users understand which test is running and what it does.
+func PrintTestHeader(t *testing.T, testName, description string) {
+	t.Helper()
+
+	// Open /dev/tty for unbuffered output (bypasses test framework buffering)
+	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+	if err != nil {
+		// Fallback to stderr if /dev/tty is unavailable (e.g., in CI)
+		tty = os.Stderr
+	} else {
+		defer tty.Close()
+	}
+
+	// Print to terminal
+	fmt.Fprintf(tty, "\n=== RUN: %s ===\n", testName)
+	fmt.Fprintf(tty, "    %s\n\n", description)
+
+	// Also log to test output
+	t.Logf("=== RUN: %s ===", testName)
+	t.Logf("    %s", description)
+}
+
 // ReportProgress prints progress information to stderr for real-time visibility
 // and to test log for test output. This helper ensures consistent progress
 // reporting across all deployment tests.
