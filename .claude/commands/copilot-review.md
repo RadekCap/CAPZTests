@@ -18,6 +18,10 @@ This command runs in **autonomous mode** with the following behavior:
 - Progress: Fetching data, found X findings
 - Final: Summary of actions taken
 
+**Comment Behavior**:
+- Individual finding responses → Posted as **threaded replies** to each Copilot comment
+- Final summary → Posted as **general PR comment** in main thread
+
 **No interaction required** - command runs completely autonomously and reports results at the end.
 
 ## Instructions
@@ -101,6 +105,7 @@ This command runs in **autonomous mode** with the following behavior:
       THREAD_ID=$(echo "$FINDING_DATA" | jq -r '.id')
       IS_RESOLVED=$(echo "$FINDING_DATA" | jq -r '.isResolved')
       COMMENT=$(echo "$FINDING_DATA" | jq '.comments.nodes[0]')
+      COMMENT_ID=$(echo "$COMMENT" | jq -r '.databaseId')
       COMMENT_BODY=$(echo "$COMMENT" | jq -r '.body')
       FILE_PATH=$(echo "$COMMENT" | jq -r '.path')
       LINE=$(echo "$COMMENT" | jq -r '.line')
@@ -124,18 +129,17 @@ This command runs in **autonomous mode** with the following behavior:
       - Implement the suggested fix
       - Ensure fix follows repo patterns
       - Test that code still works (if applicable)
-      - Post individual reply to the specific comment using GitHub CLI (silent):
+      - Post threaded reply directly to the Copilot finding (silent):
         ```bash
-        gh pr review {pr_number} --comment --body "$(cat <<'EOF'
-✅ Implemented.
+        # Reply directly in the comment thread
+        gh api -X POST repos/$OWNER/$REPO/pulls/comments/$COMMENT_ID/replies \
+          -f body="✅ Implemented.
 
 [Detailed description of what was changed and why]
 
 Changes:
 - [Specific change 1]
-- [Specific change 2]
-EOF
-)" > /dev/null 2>&1
+- [Specific change 2]" > /dev/null 2>&1
         ```
       - Resolve thread via GraphQL (silent):
         ```bash
@@ -156,16 +160,15 @@ EOF
 
       **Option 2: DENY** (silent execution)
       - Provide clear rationale (e.g., "This conflicts with our sequential test pattern", "This would break idempotency", etc.)
-      - Post individual reply to the specific comment (silent):
+      - Post threaded reply directly to the Copilot finding (silent):
         ```bash
-        gh pr review {pr_number} --comment --body "$(cat <<'EOF'
-❌ Not implementing.
+        # Reply directly in the comment thread
+        gh api -X POST repos/$OWNER/$REPO/pulls/comments/$COMMENT_ID/replies \
+          -f body="❌ Not implementing.
 
 **Rationale**: [Detailed explanation]
 
-[Additional context about why this doesn't fit the project]
-EOF
-)" > /dev/null 2>&1
+[Additional context about why this doesn't fit the project]" > /dev/null 2>&1
         ```
       - Resolve thread via GraphQL (silent):
         ```bash
@@ -196,7 +199,22 @@ EOF
      Co-Authored-By: Claude <noreply@anthropic.com>" > /dev/null 2>&1
      git push > /dev/null 2>&1
      ```
-   - Provide **minimal summary** at the end (see Summary Report section)
+   - Post final summary as a general PR comment:
+     ```bash
+     gh pr review {pr_number} --comment --body "✅ Copilot Review Complete
+
+Summary:
+- Total findings: X
+- Accepted: Y
+- Denied: Z
+- Files modified: [list files with +/- lines]
+- Committed: [commit hash]
+- Posted X threaded replies to findings
+- Resolved X threads
+
+See individual findings above for implementation details."
+     ```
+   - Display summary in console output (see Summary Report section)
 
 ## Important Guidelines
 
@@ -314,8 +332,9 @@ This command automatically resolves GitHub review threads after posting replies 
 
 ## Summary Report (Minimal Output Format)
 
-At the end of execution, provide **only** this minimal summary:
+At the end of execution, display this minimal summary in console AND post as general PR comment:
 
+**Console Output**:
 ```
 ✅ Copilot Review Complete
 
@@ -325,11 +344,16 @@ Summary:
 - Denied: Z
 - Files modified: [list files with +/- lines]
 - Committed: [commit hash]
-- Posted X review comments
+- Posted X threaded replies to findings
 - Resolved X threads
 
 See PR #XXX for details.
 ```
+
+**Posted as PR Comment** (same content):
+- Allows reviewers to see summary in GitHub UI
+- Posted in main comment thread (not threaded)
+- Individual finding responses remain threaded under each Copilot comment
 
 **Example**:
 ```
