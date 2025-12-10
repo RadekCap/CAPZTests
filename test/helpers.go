@@ -42,6 +42,9 @@ func RunCommand(t *testing.T, name string, args ...string) (string, error) {
 // RunCommandWithStreaming executes a shell command and streams output in real-time.
 // This is useful for long-running commands where users need to see progress.
 // Returns the complete output and any error that occurred.
+//
+// This function bypasses test framework buffering by writing directly to /dev/tty,
+// ensuring output appears immediately even when run through gotestsum or go test.
 func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string, error) {
 	t.Helper()
 
@@ -50,10 +53,17 @@ func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string,
 	if len(args) > 0 {
 		cmdStr = fmt.Sprintf("%s %s", name, strings.Join(args, " "))
 	}
-	if testing.Verbose() {
-		fmt.Fprintf(os.Stderr, "Running (streaming): %s\n", cmdStr)
+
+	// Open /dev/tty for unbuffered output (bypasses test framework buffering)
+	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+	if err != nil {
+		// Fallback to stderr if /dev/tty is unavailable (e.g., in CI)
+		tty = os.Stderr
+	} else {
+		defer tty.Close()
 	}
 
+	fmt.Fprintf(tty, "Running (streaming): %s\n", cmdStr)
 	t.Logf("Executing command (streaming): %s", cmdStr)
 
 	cmd := exec.Command(name, args...)
@@ -86,8 +96,8 @@ func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string,
 			if n > 0 {
 				chunk := string(buf[:n])
 				outputBuilder.WriteString(chunk)
-				// Print to stderr for real-time visibility
-				fmt.Fprint(os.Stderr, chunk)
+				// Write to /dev/tty for immediate visibility (bypasses buffering)
+				tty.Write([]byte(chunk))
 			}
 			if err != nil {
 				break
@@ -103,8 +113,8 @@ func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string,
 			if n > 0 {
 				chunk := string(buf[:n])
 				outputBuilder.WriteString(chunk)
-				// Print to stderr for real-time visibility
-				fmt.Fprint(os.Stderr, chunk)
+				// Write to /dev/tty for immediate visibility (bypasses buffering)
+				tty.Write([]byte(chunk))
 			}
 			if err != nil {
 				break
