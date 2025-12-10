@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// TestKindCluster_Deploy tests deploying a Kind cluster with CAPZ
-func TestKindCluster_Deploy(t *testing.T) {
+// TestKindCluster_KindClusterReady tests deploying a Kind cluster with CAPZ and verifies it's ready
+func TestKindCluster_KindClusterReady(t *testing.T) {
 
 	config := NewTestConfig()
 
@@ -21,64 +21,46 @@ func TestKindCluster_Deploy(t *testing.T) {
 	// Check if cluster already exists
 	t.Log("Checking for existing Kind cluster")
 	output, _ := RunCommand(t, "kind", "get", "clusters")
-	if strings.Contains(output, config.ManagementClusterName) {
+	clusterExists := strings.Contains(output, config.ManagementClusterName)
+
+	if !clusterExists {
+		// Deploy Kind cluster using the script
+		scriptPath := filepath.Join(config.RepoDir, "scripts", "deploy-charts-kind-capz.sh")
+		if !FileExists(scriptPath) {
+			t.Errorf("Deployment script not found: %s", scriptPath)
+			return
+		}
+
+		t.Logf("Deploying Kind cluster '%s' using script", config.ManagementClusterName)
+
+		// Set environment variable for the script (deploy-charts-kind-capz.sh expects KIND_CLUSTER_NAME)
+		SetEnvVar(t, "KIND_CLUSTER_NAME", config.ManagementClusterName)
+
+		// Change to repository directory for script execution
+		originalDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current directory: %v", err)
+		}
+		defer os.Chdir(originalDir)
+
+		if err := os.Chdir(config.RepoDir); err != nil {
+			t.Fatalf("Failed to change to repository directory: %v", err)
+		}
+
+		// Run the deployment script (this might take several minutes)
+		t.Log("Running deployment script (this may take several minutes)...")
+		output, err = RunCommand(t, "bash", scriptPath)
+		if err != nil {
+			// On error, show output for debugging (may contain sensitive info, but needed for troubleshooting)
+			t.Errorf("Failed to deploy Kind cluster: %v\nOutput: %s", err, output)
+			return
+		}
+
+		// Don't log full script output as it may contain sensitive Azure configuration
+		t.Log("Kind cluster deployment script completed successfully")
+	} else {
 		t.Logf("Kind cluster '%s' already exists", config.ManagementClusterName)
-		return
 	}
-
-	// Deploy Kind cluster using the script
-	scriptPath := filepath.Join(config.RepoDir, "scripts", "deploy-charts-kind-capz.sh")
-	if !FileExists(scriptPath) {
-		t.Errorf("Deployment script not found: %s", scriptPath)
-		return
-	}
-
-	t.Logf("Deploying Kind cluster '%s' using script", config.ManagementClusterName)
-
-	// Set environment variable for the script (deploy-charts-kind-capz.sh expects KIND_CLUSTER_NAME)
-	SetEnvVar(t, "KIND_CLUSTER_NAME", config.ManagementClusterName)
-
-	// Change to repository directory for script execution
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-	defer os.Chdir(originalDir)
-
-	if err := os.Chdir(config.RepoDir); err != nil {
-		t.Fatalf("Failed to change to repository directory: %v", err)
-	}
-
-	// Run the deployment script (this might take several minutes)
-	t.Log("Running deployment script (this may take several minutes)...")
-	output, err = RunCommand(t, "bash", scriptPath)
-	if err != nil {
-		// On error, show output for debugging (may contain sensitive info, but needed for troubleshooting)
-		t.Errorf("Failed to deploy Kind cluster: %v\nOutput: %s", err, output)
-		return
-	}
-
-	// Don't log full script output as it may contain sensitive Azure configuration
-	t.Log("Kind cluster deployment script completed successfully")
-}
-
-// TestKindCluster_Verify verifies the Kind cluster is running and accessible
-func TestKindCluster_Verify(t *testing.T) {
-
-	config := NewTestConfig()
-
-	// Check if cluster exists
-	output, err := RunCommand(t, "kind", "get", "clusters")
-	if err != nil {
-		t.Errorf("Failed to get Kind clusters: %v", err)
-		return
-	}
-
-	if !strings.Contains(output, config.ManagementClusterName) {
-		t.Skipf("Kind cluster '%s' not found. Run deployment test first.", config.ManagementClusterName)
-	}
-
-	t.Logf("Kind cluster '%s' exists", config.ManagementClusterName)
 
 	// Verify cluster is accessible via kubectl
 	t.Log("Verifying cluster accessibility...")
@@ -86,21 +68,22 @@ func TestKindCluster_Verify(t *testing.T) {
 	// Set kubeconfig context
 	SetEnvVar(t, "KUBECONFIG", fmt.Sprintf("%s/.kube/config", os.Getenv("HOME")))
 
-	output, err = RunCommand(t, "kubectl", "--context", fmt.Sprintf("kind-%s", config.ManagementClusterName), "get", "nodes")
+	output, err := RunCommand(t, "kubectl", "--context", fmt.Sprintf("kind-%s", config.ManagementClusterName), "get", "nodes")
 	if err != nil {
 		t.Errorf("Failed to access Kind cluster nodes: %v\nOutput: %s", err, output)
 		return
 	}
 
 	t.Logf("Kind cluster nodes:\n%s", output)
+	t.Log("Kind cluster is ready")
 }
 
-// TestKindCluster_CAPIComponents verifies CAPI components are installed
-func TestKindCluster_CAPIComponents(t *testing.T) {
+// TestKindCluster_CAPINamespacesExists verifies CAPI namespaces are installed
+func TestKindCluster_CAPINamespacesExists(t *testing.T) {
 
 	config := NewTestConfig()
 
-	t.Log("Checking for CAPI components...")
+	t.Log("Checking for CAPI namespaces...")
 
 	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
 
