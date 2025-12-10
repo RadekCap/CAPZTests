@@ -3,7 +3,7 @@
 # Default values
 DEPLOYMENT_ENV ?= stage
 REGION ?= uksouth
-MANAGEMENT_CLUSTER_NAME ?= capz-stage
+MANAGEMENT_CLUSTER_NAME ?= capz-tests-stage
 
 # Test configuration
 GOTESTSUM_FORMAT ?= testname
