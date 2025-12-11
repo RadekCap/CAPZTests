@@ -249,7 +249,7 @@ func PrintToTTY(format string, args ...interface{}) {
 // ReportProgress prints progress information to TTY for real-time visibility
 // and to test log for test output. This helper ensures consistent progress
 // reporting across all deployment tests.
-func ReportProgress(t *testing.T, w io.Writer, iteration int, elapsed, remaining, timeout time.Duration) {
+func ReportProgress(t *testing.T, iteration int, elapsed, remaining, timeout time.Duration) {
 	t.Helper()
 	percentage := int((float64(elapsed) / float64(timeout)) * 100)
 

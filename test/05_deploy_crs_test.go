@@ -297,7 +297,7 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 		}
 
 		// Report progress using helper function
-		ReportProgress(t, os.Stderr, iteration, elapsed, remaining, timeout)
+		ReportProgress(t, iteration, elapsed, remaining, timeout)
 
 		time.Sleep(pollInterval)
 	}

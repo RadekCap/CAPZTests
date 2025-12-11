@@ -198,7 +198,7 @@ func TestKindCluster_CAPIControllerReady(t *testing.T) {
 			}
 		}
 
-		ReportProgress(t, os.Stderr, iteration, elapsed, remaining, timeout)
+		ReportProgress(t, iteration, elapsed, remaining, timeout)
 
 		time.Sleep(pollInterval)
 	}
@@ -253,7 +253,7 @@ func TestKindCluster_CAPZControllerReady(t *testing.T) {
 			}
 		}
 
-		ReportProgress(t, os.Stderr, iteration, elapsed, remaining, timeout)
+		ReportProgress(t, iteration, elapsed, remaining, timeout)
 
 		time.Sleep(pollInterval)
 	}
@@ -308,7 +308,7 @@ func TestKindCluster_ASOControllerReady(t *testing.T) {
 			}
 		}
 
-		ReportProgress(t, os.Stderr, iteration, elapsed, remaining, timeout)
+		ReportProgress(t, iteration, elapsed, remaining, timeout)
 
 		time.Sleep(pollInterval)
 	}
