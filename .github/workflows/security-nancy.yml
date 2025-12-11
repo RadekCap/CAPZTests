@@ -91,10 +91,10 @@ jobs:
           cat > comment_body.md << COMMENT_EOF
 ## 🔄 Vulnerable Dependencies Still Present
 
-**New Detection**: \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
+**New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-**Branch**: \${{ github.ref_name }}
-**Commit**: \${{ github.sha }}
+**Branch**: ${{ github.ref_name }}
+**Commit**: ${{ github.sha }}
 
 ### Status
 
@@ -103,7 +103,7 @@ Nancy continues to detect vulnerable Go dependencies from the Sonatype OSS Index
 <details>
 <summary>View workflow logs for details</summary>
 
-Check the [workflow run](\${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}) for specific vulnerable packages and versions.
+Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for specific vulnerable packages and versions.
 
 </details>
 
@@ -126,10 +126,10 @@ The **nancy** dependency scanner has detected Go dependencies with known vulnera
 | **Scanner** | nancy (Sonatype OSS Index) |
 | **Status** | ❌ FAILED |
 | **Database** | Sonatype OSS Index |
-| **Workflow Run** | [\${{ github.run_id }}](\${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}) |
-| **Branch** | `\${{ github.ref_name }}` |
-| **Commit** | `\${{ github.sha }}` |
-| **Triggered By** | \${{ github.event_name }} |
+| **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+| **Branch** | `${{ github.ref_name }}` |
+| **Commit** | `${{ github.sha }}` |
+| **Triggered By** | ${{ github.event_name }} |
 | **Date** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
 
 ## 📋 Vulnerability Details
@@ -138,7 +138,7 @@ Nancy scans your Go dependencies (`go.list`) against the Sonatype OSS Index for 
 
 ### View Full Results
 
-Check the [workflow run logs](\${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}) for:
+Check the [workflow run logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for:
 - Specific vulnerable package names
 - CVE identifiers
 - Vulnerability severity ratings
@@ -154,7 +154,7 @@ The scan analyzed dependencies from `go.list`. Download the artifact from the wo
 
 Review the workflow logs to identify which packages have vulnerabilities:
 \`\`\`
-Check: https://github.com/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
+Check: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 \`\`\`
 
 ### 2️⃣ Update Dependencies
@@ -237,7 +237,7 @@ Consider enabling GitHub Dependabot for automatic dependency updates:
 - [Sonatype OSS Index](https://ossindex.sonatype.org/)
 - [Go Vulnerability Database](https://vuln.go.dev/)
 - [Go Module Documentation](https://go.dev/ref/mod)
-- [Workflow File](\${{ github.server_url }}/\${{ github.repository }}/blob/main/.github/workflows/security-nancy.yml)
+- [Workflow File](${{ github.server_url }}/${{ github.repository }}/blob/main/.github/workflows/security-nancy.yml)
 
 ## 🔄 Comparison with govulncheck
 
@@ -260,12 +260,12 @@ Both scanners complement each other - fix vulnerabilities found by either scanne
 
 ---
 
-*🤖 This issue was automatically created by the [nancy security workflow](\${{ github.server_url }}/\${{ github.repository }}/actions/workflows/security-nancy.yml)*
+*🤖 This issue was automatically created by the [nancy security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-nancy.yml)*
 ISSUE_EOF
 
           # Create issue with security labels
           gh issue create \
-            --title "🚨 [nancy] Vulnerable dependencies detected on \${{ github.ref_name }}" \
+            --title "🚨 [nancy] Vulnerable dependencies detected on ${{ github.ref_name }}" \
             --label "security" \
             --label "nancy" \
             --body-file issue_body.md || \

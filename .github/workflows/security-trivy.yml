@@ -125,10 +125,10 @@ jobs:
           cat > comment_body.md << COMMENT_EOF
 ## 🔄 Vulnerabilities Still Present
 
-**New Detection**: \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
+**New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-**Branch**: \${{ github.ref_name }}
-**Commit**: \${{ github.sha }}
+**Branch**: ${{ github.ref_name }}
+**Commit**: ${{ github.sha }}
 
 ### Current Vulnerability Count
 
@@ -153,7 +153,7 @@ $(cat trivy-results.txt 2>/dev/null | head -200 || echo "See workflow logs for f
 
 **Action Required**: Vulnerabilities persist. Please prioritize CRITICAL and HIGH severity issues.
 
-**Security Tab**: Check the [Security tab](\${{ github.server_url }}/\${{ github.repository }}/security/code-scanning) for detailed SARIF results.
+**Security Tab**: Check the [Security tab](${{ github.server_url }}/${{ github.repository }}/security/code-scanning) for detailed SARIF results.
 COMMENT_EOF
 
           gh issue comment $EXISTING_ISSUE --body-file comment_body.md
@@ -176,9 +176,9 @@ The **Trivy** comprehensive security scanner has detected vulnerabilities, misco
 | **🟡 MEDIUM** | $MEDIUM |
 | **🟢 LOW** | $LOW |
 | **TOTAL** | **$TOTAL** |
-| **Workflow Run** | [\${{ github.run_id }}](\${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}) |
-| **Branch** | `\${{ github.ref_name }}` |
-| **Commit** | `\${{ github.sha }}` |
+| **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+| **Branch** | `${{ github.ref_name }}` |
+| **Commit** | `${{ github.sha }}` |
 | **Date** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
 
 ## 📊 Severity Breakdown
@@ -194,7 +194,7 @@ LOW:      $LOW issues     - 📝 Low priority
 
 ### View in GitHub Security Tab
 
-🔒 **SARIF Results**: [View in Security Tab](\${{ github.server_url }}/\${{ github.repository }}/security/code-scanning)
+🔒 **SARIF Results**: [View in Security Tab](${{ github.server_url }}/${{ github.repository }}/security/code-scanning)
 
 The SARIF output has been uploaded to GitHub's Security tab for detailed analysis.
 
@@ -281,8 +281,8 @@ docker run --rm -v $(pwd):/scan aquasec/trivy fs /scan
 - [Trivy Documentation](https://aquasecurity.github.io/trivy/)
 - [Trivy GitHub](https://github.com/aquasecurity/trivy)
 - [Security Best Practices](https://aquasecurity.github.io/trivy/latest/docs/best-practices/)
-- [GitHub Security Tab](\${{ github.server_url }}/\${{ github.repository }}/security)
-- [Workflow File](\${{ github.server_url }}/\${{ github.repository }}/blob/main/.github/workflows/security-trivy.yml)
+- [GitHub Security Tab](${{ github.server_url }}/${{ github.repository }}/security)
+- [Workflow File](${{ github.server_url }}/${{ github.repository }}/blob/main/.github/workflows/security-trivy.yml)
 
 ## 🔔 Next Steps
 
@@ -296,12 +296,12 @@ docker run --rm -v $(pwd):/scan aquasec/trivy fs /scan
 
 ---
 
-*🤖 This issue was automatically created by the [Trivy security workflow](\${{ github.server_url }}/\${{ github.repository }}/actions/workflows/security-trivy.yml)*
+*🤖 This issue was automatically created by the [Trivy security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-trivy.yml)*
 ISSUE_EOF
 
           # Create issue with security labels
           gh issue create \
-            --title "🚨 [Trivy] $TOTAL vulnerabilities detected on \${{ github.ref_name }}" \
+            --title "🚨 [Trivy] $TOTAL vulnerabilities detected on ${{ github.ref_name }}" \
             --label "security" \
             --label "trivy" \
             --body-file issue_body.md || \

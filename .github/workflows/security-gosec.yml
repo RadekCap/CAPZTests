@@ -96,10 +96,10 @@ jobs:
           cat > comment_body.md << COMMENT_EOF
 ## 🔄 Security Issues Still Present
 
-**New Detection**: \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
+**New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-**Branch**: \${{ github.ref_name }}
-**Commit**: \${{ github.sha }}
+**Branch**: ${{ github.ref_name }}
+**Commit**: ${{ github.sha }}
 **Issues Count**: $ISSUES
 
 ### Latest Findings
@@ -143,9 +143,9 @@ The **gosec** source code security scanner has detected security issues in the G
 | **🔴 HIGH** | $HIGH |
 | **🟡 MEDIUM** | $MEDIUM |
 | **🟢 LOW** | $LOW |
-| **Workflow Run** | [\${{ github.run_id }}](\${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }}) |
-| **Branch** | \`\${{ github.ref_name }}\` |
-| **Commit** | \`\${{ github.sha }}\` |
+| **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+| **Branch** | \`${{ github.ref_name }}\` |
+| **Commit** | \`${{ github.sha }}\` |
 | **Date** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
 
 ## 📋 Security Issues Found
@@ -204,7 +204,7 @@ gosec ./...
 - [gosec Documentation](https://github.com/securego/gosec)
 - [Available Rules](https://github.com/securego/gosec#available-rules)
 - [CWE Database](https://cwe.mitre.org/)
-- [Workflow File](\${{ github.server_url }}/\${{ github.repository }}/blob/main/.github/workflows/security-gosec.yml)
+- [Workflow File](${{ github.server_url }}/${{ github.repository }}/blob/main/.github/workflows/security-gosec.yml)
 
 ## 🔔 Next Steps
 
@@ -216,7 +216,7 @@ gosec ./...
 
 ---
 
-*🤖 This issue was automatically created by the [gosec security workflow](\${{ github.server_url }}/\${{ github.repository }}/actions/workflows/security-gosec.yml)*
+*🤖 This issue was automatically created by the [gosec security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-gosec.yml)*
 ISSUE_EOF
 
           # Create issue with security labels
