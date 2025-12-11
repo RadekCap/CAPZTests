@@ -16,8 +16,13 @@ func TestDeployment_ApplyResources(t *testing.T) {
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
+		fmt.Fprintf(os.Stderr, "⚠️  Output directory does not exist: %s\n", outputDir)
+		os.Stderr.Sync() // Force immediate output
 		t.Skipf("Output directory does not exist: %s", outputDir)
 	}
+
+	fmt.Fprintf(os.Stderr, "\n=== Applying Kubernetes resources ===\n")
+	os.Stderr.Sync() // Force immediate output
 
 	// Get files to apply from centralized list (from 04_generate_yamls_test.go)
 	expectedFiles := []string{
@@ -41,10 +46,14 @@ func TestDeployment_ApplyResources(t *testing.T) {
 
 	for _, file := range expectedFiles {
 		if !FileExists(file) {
+			fmt.Fprintf(os.Stderr, "❌ Cannot apply missing file: %s\n", file)
+			os.Stderr.Sync() // Force immediate output
 			t.Errorf("Cannot apply missing file: %s", file)
 			continue
 		}
 
+		fmt.Fprintf(os.Stderr, "Applying resource file: %s...\n", file)
+		os.Stderr.Sync() // Force immediate output
 		t.Logf("Applying resource file: %s", file)
 
 		output, err := RunCommand(t, "kubectl", "--context", context, "apply", "-f", file)
@@ -52,29 +61,43 @@ func TestDeployment_ApplyResources(t *testing.T) {
 		// (e.g., when resources are "unchanged"). Check output content for actual errors.
 		if err != nil && !IsKubectlApplySuccess(output) {
 			// On error, show output for debugging (may contain sensitive info, but needed for troubleshooting)
+			fmt.Fprintf(os.Stderr, "❌ Failed to apply %s: %v\n", file, err)
+			os.Stderr.Sync() // Force immediate output
 			t.Errorf("Failed to apply %s: %v\nOutput: %s", file, err, output)
 			continue
 		}
 
 		// Don't log full kubectl output as it may contain Azure subscription IDs and resource details
+		fmt.Fprintf(os.Stderr, "✅ Successfully applied %s\n", file)
+		os.Stderr.Sync() // Force immediate output
 		t.Logf("Successfully applied %s", file)
 	}
+
+	fmt.Fprintf(os.Stderr, "\n=== Resource application complete ===\n\n")
+	os.Stderr.Sync() // Force immediate output
 }
 
 // TestDeployment_ApplyCredentialsYAML tests applying credentials.yaml to the cluster
 func TestDeployment_ApplyCredentialsYAML(t *testing.T) {
 	file := "credentials.yaml"
+
+	fmt.Fprintf(os.Stderr, "\n=== Applying %s ===\n", file)
+	os.Stderr.Sync() // Force immediate output
 	t.Logf("Applying %s", file)
 
 	config := NewTestConfig()
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
+		fmt.Fprintf(os.Stderr, "⚠️  Output directory does not exist: %s\n\n", outputDir)
+		os.Stderr.Sync() // Force immediate output
 		t.Skipf("Output directory does not exist: %s", outputDir)
 	}
 
 	filePath := filepath.Join(outputDir, file)
 	if !FileExists(filePath) {
+		fmt.Fprintf(os.Stderr, "❌ %s not found at %s\n\n", file, filePath)
+		os.Stderr.Sync() // Force immediate output
 		t.Errorf("%s not found", filePath)
 		return
 	}
@@ -83,27 +106,38 @@ func TestDeployment_ApplyCredentialsYAML(t *testing.T) {
 	output, err := RunCommand(t, "kubectl", "--context", context, "apply", "-f", filePath)
 
 	if err != nil && !IsKubectlApplySuccess(output) {
+		fmt.Fprintf(os.Stderr, "❌ Failed to apply %s: %v\n\n", file, err)
+		os.Stderr.Sync() // Force immediate output
 		t.Errorf("Failed to apply %s: %v\nOutput: %s", file, err, output)
 		return
 	}
 
+	fmt.Fprintf(os.Stderr, "✅ Successfully applied %s\n\n", file)
+	os.Stderr.Sync() // Force immediate output
 	t.Logf("Successfully applied %s", file)
 }
 
 // TestDeployment_ApplyInfrastructureSecretsYAML tests applying is.yaml to the cluster
 func TestDeployment_ApplyInfrastructureSecretsYAML(t *testing.T) {
 	file := "is.yaml"
+
+	fmt.Fprintf(os.Stderr, "\n=== Applying %s (infrastructure secrets) ===\n", file)
+	os.Stderr.Sync() // Force immediate output
 	t.Logf("Applying %s (infrastructure secrets)", file)
 
 	config := NewTestConfig()
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
+		fmt.Fprintf(os.Stderr, "⚠️  Output directory does not exist: %s\n\n", outputDir)
+		os.Stderr.Sync() // Force immediate output
 		t.Skipf("Output directory does not exist: %s", outputDir)
 	}
 
 	filePath := filepath.Join(outputDir, file)
 	if !FileExists(filePath) {
+		fmt.Fprintf(os.Stderr, "❌ %s not found at %s\n\n", file, filePath)
+		os.Stderr.Sync() // Force immediate output
 		t.Errorf("%s not found", filePath)
 		return
 	}
@@ -112,27 +146,38 @@ func TestDeployment_ApplyInfrastructureSecretsYAML(t *testing.T) {
 	output, err := RunCommand(t, "kubectl", "--context", context, "apply", "-f", filePath)
 
 	if err != nil && !IsKubectlApplySuccess(output) {
+		fmt.Fprintf(os.Stderr, "❌ Failed to apply %s: %v\n\n", file, err)
+		os.Stderr.Sync() // Force immediate output
 		t.Errorf("Failed to apply %s: %v\nOutput: %s", file, err, output)
 		return
 	}
 
+	fmt.Fprintf(os.Stderr, "✅ Successfully applied %s\n\n", file)
+	os.Stderr.Sync() // Force immediate output
 	t.Logf("Successfully applied %s", file)
 }
 
 // TestDeployment_ApplyAROClusterYAML tests applying aro.yaml to the cluster
 func TestDeployment_ApplyAROClusterYAML(t *testing.T) {
 	file := "aro.yaml"
+
+	fmt.Fprintf(os.Stderr, "\n=== Applying %s (ARO cluster configuration) ===\n", file)
+	os.Stderr.Sync() // Force immediate output
 	t.Logf("Applying %s (ARO cluster configuration)", file)
 
 	config := NewTestConfig()
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
+		fmt.Fprintf(os.Stderr, "⚠️  Output directory does not exist: %s\n\n", outputDir)
+		os.Stderr.Sync() // Force immediate output
 		t.Skipf("Output directory does not exist: %s", outputDir)
 	}
 
 	filePath := filepath.Join(outputDir, file)
 	if !FileExists(filePath) {
+		fmt.Fprintf(os.Stderr, "❌ %s not found at %s\n\n", file, filePath)
+		os.Stderr.Sync() // Force immediate output
 		t.Errorf("%s not found", filePath)
 		return
 	}
@@ -141,10 +186,14 @@ func TestDeployment_ApplyAROClusterYAML(t *testing.T) {
 	output, err := RunCommand(t, "kubectl", "--context", context, "apply", "-f", filePath)
 
 	if err != nil && !IsKubectlApplySuccess(output) {
+		fmt.Fprintf(os.Stderr, "❌ Failed to apply %s: %v\n\n", file, err)
+		os.Stderr.Sync() // Force immediate output
 		t.Errorf("Failed to apply %s: %v\nOutput: %s", file, err, output)
 		return
 	}
 
+	fmt.Fprintf(os.Stderr, "✅ Successfully applied %s\n\n", file)
+	os.Stderr.Sync() // Force immediate output
 	t.Logf("Successfully applied %s", file)
 }
 
@@ -305,37 +354,62 @@ func TestDeployment_CheckClusterConditions(t *testing.T) {
 	config := NewTestConfig()
 	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
 
+	fmt.Fprintf(os.Stderr, "\n=== Checking cluster conditions ===\n")
+	fmt.Fprintf(os.Stderr, "Cluster: %s\n\n", config.WorkloadClusterName)
+	os.Stderr.Sync() // Force immediate output
 	t.Log("Checking cluster conditions...")
 
 	// Check cluster status
+	fmt.Fprintf(os.Stderr, "Fetching cluster status...\n")
+	os.Stderr.Sync() // Force immediate output
+
 	output, err := RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.WorkloadClusterName, "-o", "yaml")
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to get cluster status: %v\n\n", err)
+		os.Stderr.Sync() // Force immediate output
 		t.Errorf("Failed to get cluster status: %v", err)
 		return
 	}
 
 	// Log the cluster conditions
 	if strings.Contains(output, "status:") {
+		fmt.Fprintf(os.Stderr, "✅ Cluster has status information\n")
+		os.Stderr.Sync() // Force immediate output
 		t.Log("Cluster has status information")
 		// Extract conditions section
 		if strings.Contains(output, "conditions:") {
+			fmt.Fprintf(os.Stderr, "✅ Cluster conditions are available\n\n")
+			os.Stderr.Sync() // Force immediate output
 			t.Log("Cluster conditions are available in the output")
 		}
 	}
 
 	// Check for infrastructure ready condition
+	fmt.Fprintf(os.Stderr, "Checking InfrastructureReady condition...\n")
+	os.Stderr.Sync() // Force immediate output
+
 	output, err = RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.WorkloadClusterName,
 		"-o", "jsonpath={.status.conditions[?(@.type=='InfrastructureReady')].status}")
 
 	if err == nil && strings.TrimSpace(output) != "" {
+		fmt.Fprintf(os.Stderr, "📊 InfrastructureReady status: %s\n", output)
+		os.Stderr.Sync() // Force immediate output
 		t.Logf("InfrastructureReady status: %s", output)
 	}
 
 	// Check for control plane ready condition
+	fmt.Fprintf(os.Stderr, "Checking ControlPlaneReady condition...\n")
+	os.Stderr.Sync() // Force immediate output
+
 	output, err = RunCommand(t, "kubectl", "--context", context, "get", "cluster", config.WorkloadClusterName,
 		"-o", "jsonpath={.status.conditions[?(@.type=='ControlPlaneReady')].status}")
 
 	if err == nil && strings.TrimSpace(output) != "" {
+		fmt.Fprintf(os.Stderr, "📊 ControlPlaneReady status: %s\n", output)
+		os.Stderr.Sync() // Force immediate output
 		t.Logf("ControlPlaneReady status: %s", output)
 	}
+
+	fmt.Fprintf(os.Stderr, "\n=== Cluster condition check complete ===\n\n")
+	os.Stderr.Sync() // Force immediate output
 }
