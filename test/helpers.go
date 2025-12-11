@@ -232,15 +232,26 @@ func PrintTestHeader(t *testing.T, testName, description string) {
 	t.Logf("    %s", description)
 }
 
-// ReportProgress prints progress information to stderr for real-time visibility
+// PrintToTTY writes a message directly to the terminal (TTY), bypassing all
+// buffering including test framework and gotestsum buffering. This ensures
+// immediate visibility of output during test execution.
+func PrintToTTY(format string, args ...interface{}) {
+	tty, shouldClose := openTTY()
+	if shouldClose {
+		defer tty.Close()
+	}
+	fmt.Fprintf(tty, format, args...)
+}
+
+// ReportProgress prints progress information to TTY for real-time visibility
 // and to test log for test output. This helper ensures consistent progress
 // reporting across all deployment tests.
 func ReportProgress(t *testing.T, w io.Writer, iteration int, elapsed, remaining, timeout time.Duration) {
 	t.Helper()
 	percentage := int((float64(elapsed) / float64(timeout)) * 100)
 
-	// Print to stderr for real-time visibility (unbuffered)
-	fmt.Fprintf(w, "[%d] ⏳ Waiting... | Elapsed: %v | Remaining: %v | Progress: %d%%\n",
+	// Print to TTY for real-time visibility (bypasses all buffering)
+	PrintToTTY("[%d] ⏳ Waiting... | Elapsed: %v | Remaining: %v | Progress: %d%%\n",
 		iteration,
 		elapsed.Round(time.Second),
 		remaining.Round(time.Second),
