@@ -84,8 +84,8 @@ jobs:
       run: |
         WORKFLOW_NAME="gosec Security Scan"
 
-        # Search for existing open issues (without requiring labels)
-        EXISTING_ISSUE=$(gh issue list --state open --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
+        # Search for existing open issues with security label
+        EXISTING_ISSUE=$(gh issue list --state open --label "security" --label "gosec" --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
 
         if [ -n "$EXISTING_ISSUE" ]; then
           echo "Existing issue found: #$EXISTING_ISSUE"
@@ -219,9 +219,11 @@ gosec ./...
 *🤖 This issue was automatically created by the [gosec security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-gosec.yml)*
 ISSUE_EOF
 
-          # Create issue without labels (they may not exist)
+          # Create issue with security labels
           gh issue create \
             --title "🚨 [gosec] Security issues detected on ${{ github.ref_name }}" \
+            --label "security" \
+            --label "gosec" \
             --body-file issue_body.md || \
           echo "Failed to create issue, but continuing workflow"
         fi

@@ -109,8 +109,8 @@ jobs:
       run: |
         WORKFLOW_NAME="Trivy Security Scan"
 
-        # Search for existing open issues (without requiring labels)
-        EXISTING_ISSUE=$(gh issue list --state open --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
+        # Search for existing open issues with security label
+        EXISTING_ISSUE=$(gh issue list --state open --label "security" --label "trivy" --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
 
         # Count vulnerabilities by severity
         CRITICAL=$(grep -o "CRITICAL" trivy-results.txt 2>/dev/null | wc -l || echo "0")
@@ -299,9 +299,11 @@ docker run --rm -v $(pwd):/scan aquasec/trivy fs /scan
 *🤖 This issue was automatically created by the [Trivy security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-trivy.yml)*
 ISSUE_EOF
 
-          # Create issue without labels (they may not exist)
+          # Create issue with security labels
           gh issue create \
             --title "🚨 [Trivy] $TOTAL vulnerabilities detected on ${{ github.ref_name }}" \
+            --label "security" \
+            --label "trivy" \
             --body-file issue_body.md || \
           echo "Failed to create issue, but continuing workflow"
         fi
