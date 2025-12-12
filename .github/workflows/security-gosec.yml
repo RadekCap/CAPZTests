@@ -116,7 +116,7 @@ jobs:
           if [ -f gosec-results.json ] && [ "$ISSUES" != "0" ]; then
             FINDINGS_DETAILS=$(jq -r '.Issues[] | "| \(.severity) | \(.rule_id) | `\(.file)` | \(.line) | \(.details) |"' gosec-results.json 2>/dev/null)
           else
-            FINDINGS_DETAILS="See workflow run logs for complete details"
+            FINDINGS_DETAILS="See workflow logs for complete details"
           fi
 
           BODY="# 🚨 Security Alert: Code Security Issues Detected (gosec)\n"
@@ -131,23 +131,13 @@ jobs:
           BODY="| **🟡 MEDIUM** | $MEDIUM |\n"
           BODY="| **🟢 LOW** | $LOW |\n"
           BODY="| **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |\n"
-          BODY="| **Branch** | 
-${{ github.ref_name }}
- |\n"
-          BODY="| **Commit** | 
-${{ github.sha }}
- |\n"
-          BODY="| **Date** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |\n"
+          BODY="| **Branch** | ${{ github.ref_name }} |\n"
+          BODY="| **Commit** | ${{ github.sha }} |\n"
+          BODY="| **Date** | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |\n"
           BODY="## 📋 Security Issues Found\n"
           BODY="<details open>\n"
           BODY="<summary><b>Detailed Findings (Click to collapse)</b></summary>\n"
-          BODY="$(if [ -f gosec-results.json ] && [ "$ISSUES" != "0" ]; then
-            echo "| Severity | Rule | File | Line | Details |"
-            echo "|----------|------|------|------|---------|"
-            jq -r '.Issues[] | "| \(.severity) | \(.rule_id) | `\(.file)` | \(.line) | \(.details) |"' gosec-results.json 2>/dev/null
-          else
-            echo "See workflow run logs for complete details"
-          fi)"
+          BODY="$FINDINGS_DETAILS\n"
           BODY="</details>\n"
           BODY="## 🔧 Remediation Steps\n"
           BODY="### 1️⃣ Review Each Finding\n"
@@ -189,7 +179,7 @@ ${{ github.sha }}
           BODY="4. **Test** thoroughly to ensure no regressions\n"
           BODY="5. **Close** this issue once the workflow passes\n"
           BODY="---\n"
-          BODY="*🤖 This issue was automatically created by the [gosec security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-gosec.yml)*"
+          BODY="*🤖 This issue was automatically created by the [gosec security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-gosec.yml)*\n"
 
           echo -e "$BODY" > issue_body.md
           gh issue create \

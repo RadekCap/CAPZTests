@@ -72,7 +72,7 @@ jobs:
           
           BODY="## 🔄 Vulnerability Still Present\n"
           BODY="${BODY}**New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
-          BODY="${BODY}**Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')\n"
+          BODY="${BODY}**Date**: $(date -u +'\n%Y-%m-%d %H:%M:%S UTC')\n"
           BODY="${BODY}**Branch**: ${{ github.ref_name }}\n"
           BODY="${BODY}**Commit**: ${{ github.sha }}\n"
           BODY="${BODY}### Latest Scan Output\n"
@@ -102,14 +102,10 @@ jobs:
           BODY="${BODY}| **Status** | ❌ FAILED |\n"
           BODY="${BODY}| **Vulnerabilities** | $VULN_COUNT |\n"
           BODY="${BODY}| **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |\n"
-          BODY="${BODY}| **Branch** | 
-${{ github.ref_name }}
- |\n"
-          BODY="${BODY}| **Commit** | 
-${{ github.sha }}
- |\n"
-          BODY="${BODY}| **Triggered By** | ${{ github.event_name }} |\n"
-          BODY="${BODY}| **Date** | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |\n"
+          BODY="${BODY}| **Branch** | ${{ github.ref_name }} |\n"
+          BODY="${BODY}| **Commit** | ${{ github.sha }} |\n"
+          BODY="${BODY}| **Triggered By** | ${{ github.event_name }}|\n"
+          BODY="${BODY}| **Date** | $(date -u +'\n%Y-%m-%d %H:%M:%S UTC') |\n"
           BODY="${BODY}## 📋 Vulnerability Details\n"
           BODY="${BODY}<details open>\n"
           BODY="${BODY}<summary><b>Scan Results (Click to collapse)</b></summary>\n"
@@ -120,7 +116,45 @@ ${{ github.sha }}
 ```\n"
           BODY="${BODY}</details>\n"
           BODY="${BODY}## 🔧 Remediation Steps\n"
-          # ... (rest of the body)
+          BODY="${BODY}### 1️⃣ Review Vulnerabilities\n"
+          BODY="${BODY}- Examine the scan output above\n"
+          BODY="${BODY}- Check severity levels and affected packages\n"
+          BODY="${BODY}- Review [Go Vulnerability Database](https://vuln.go.dev/) for details\n"
+          BODY="${BODY}### 2️⃣ Update Dependencies\n"
+          BODY="${BODY}\
+```bash\n"
+          BODY="${BODY}# Update specific vulnerable package\n"
+          BODY="${BODY}go get -u <vulnerable-package>@<patched-version>\n"
+          BODY="${BODY}# Or update all dependencies (careful - test thoroughly)\n"
+          BODY="${BODY}go get -u ./...\n"
+          BODY="${BODY}go mod tidy\n"
+          BODY="${BODY}\
+```\n"
+          BODY="${BODY}### 3️⃣ Test Changes\n"
+          BODY="${BODY}\
+```bash\n"
+          BODY="${BODY}# Run tests\n"
+          BODY="${BODY}make test\n"
+          BODY="${BODY}# Run all security scans\n"
+          BODY="${BODY}make test-all\n"
+          BODY="${BODY}\
+```\n"
+          BODY="${BODY}### 4️⃣ Verify Fix\n"
+          BODY="${BODY}- Push changes to a branch\n"
+          BODY="${BODY}- The govulncheck workflow will run automatically\n"
+          BODY="${BODY}- Verify it passes before merging\n"
+          BODY="${BODY}## 📚 Resources\n"
+          BODY="${BODY}- [Go Vulnerability Database](https://vuln.go.dev/)\n"
+          BODY="${BODY}- [govulncheck Documentation](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck)\n"
+          BODY="${BODY}- [Workflow File](${{ github.server_url }}/${{ github.repository }}/blob/main/.github/workflows/security-govulncheck.yml)\n"
+          BODY="${BODY}## 🔔 Next Steps\n"
+          BODY="${BODY}1. **Assign** this issue to a developer\n"
+          BODY="${BODY}2. **Prioritize** based on vulnerability severity\n"
+          BODY="${BODY}3. **Update** dependencies as outlined above\n"
+          BODY="${BODY}4. **Test** thoroughly to ensure no regressions\n"
+          BODY="${BODY}5. **Close** this issue once the workflow passes\n"
+          BODY="${BODY}---\n"
+          BODY="${BODY}*🤖 This issue was automatically created by the [govulncheck security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-govulncheck.yml)*\n"
           
           echo -e "$BODY" > issue_body.md
           gh issue create \
