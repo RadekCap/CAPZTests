@@ -76,7 +76,7 @@ jobs:
         retention-days: 30
 
     - name: Create GitHub issue on vulnerability
-      if: failure() && github.event_name != 'pull_request'
+      if: steps.nancy-scan.outcome == 'failure' && github.event_name != 'pull_request'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SERVER_URL: ${{ github.server_url }}

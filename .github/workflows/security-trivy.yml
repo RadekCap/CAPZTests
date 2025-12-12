@@ -55,10 +55,16 @@ jobs:
 
         if [ -f trivy-results.txt ]; then
           # Count vulnerabilities by severity
-          CRITICAL=$(grep -c "CRITICAL" trivy-results.txt 2>/dev/null || echo "0")
-          HIGH=$(grep -c "HIGH" trivy-results.txt 2>/dev/null || echo "0")
-          MEDIUM=$(grep -c "MEDIUM" trivy-results.txt 2>/dev/null || echo "0")
-          LOW=$(grep -c "LOW" trivy-results.txt 2>/dev/null || echo "0")
+          # Note: grep -c outputs "0" and exits 1 when no matches, so we use || true
+          # to prevent script failure, then default empty values to 0
+          CRITICAL=$(grep -c "CRITICAL" trivy-results.txt 2>/dev/null) || true
+          HIGH=$(grep -c "HIGH" trivy-results.txt 2>/dev/null) || true
+          MEDIUM=$(grep -c "MEDIUM" trivy-results.txt 2>/dev/null) || true
+          LOW=$(grep -c "LOW" trivy-results.txt 2>/dev/null) || true
+          CRITICAL=${CRITICAL:-0}
+          HIGH=${HIGH:-0}
+          MEDIUM=${MEDIUM:-0}
+          LOW=${LOW:-0}
 
           TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
 
@@ -103,7 +109,7 @@ jobs:
         retention-days: 30
 
     - name: Create GitHub issue on vulnerability
-      if: failure() && github.event_name != 'pull_request'
+      if: steps.trivy-scan.outcome == 'failure' && github.event_name != 'pull_request'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SERVER_URL: ${{ github.server_url }}
