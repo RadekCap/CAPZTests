@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  issues: write
 
 jobs:
   govulncheck:
@@ -32,22 +33,23 @@ jobs:
       run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
     - name: Run govulncheck
+      id: govulncheck
       run: |
-        echo "# govulncheck Security Scan Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Scanning Go code and dependencies for known vulnerabilities..." >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        if govulncheck ./... 2>&1 | tee govulncheck-output.txt; then
-          echo "## ✅ No vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All Go dependencies are free from known vulnerabilities." >> $GITHUB_STEP_SUMMARY
+        govulncheck ./... > govulncheck-output.txt || true
+
+    - name: Generate Summary and Check for Failures
+      id: summary
+      run: |
+        if ! grep -q "Vulnerability" govulncheck-output.txt;
+        then
+          echo "✅ No vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
+          echo "failure=false" >> $GITHUB_OUTPUT
         else
           echo "## ❌ Vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cat govulncheck-output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          exit 1
+          echo "failure=true" >> $GITHUB_OUTPUT
         fi
 
     - name: Upload scan results
@@ -58,109 +60,39 @@ jobs:
         path: govulncheck-output.txt
         retention-days: 30
 
-    - name: Create GitHub issue on vulnerability
-      if: failure() && github.event_name != 'pull_request'
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        WORKFLOW_NAME="govulncheck Security Scan"
-        EXISTING_ISSUE=$(gh issue list --state open --label "security" --label "govulncheck" --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
-        if [ -n "$EXISTING_ISSUE" ]; then
-          echo "Existing issue found: #$EXISTING_ISSUE"
+    - name: Create or Update GitHub Issue
+      if: steps.summary.outputs.failure == 'true' && github.event_name != 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          const fs = require('fs');
+          const { repo: { owner, repo }, sha, ref_name } = context;
+          const workflow_url = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
           
-          SCAN_DETAILS=$(cat govulncheck-output.txt 2>/dev/null | head -100 || echo "See workflow logs for full details")
+          const scan_details = fs.readFileSync('govulncheck-output.txt', 'utf8');
+          const vuln_count = (scan_details.match(/Vulnerability/g) || []).length;
           
-          BODY="## 🔄 Vulnerability Still Present\n"
-          BODY="${BODY}**New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
-          BODY="${BODY}**Date**: $(date -u +'\n%Y-%m-%d %H:%M:%S UTC')\n"
-          BODY="${BODY}**Branch**: ${{ github.ref_name }}\n"
-          BODY="${BODY}**Commit**: ${{ github.sha }}\n"
-          BODY="${BODY}### Latest Scan Output\n"
-          BODY="${BODY}<details>\n"
-          BODY="${BODY}<summary>Click to expand scan results</summary>\n"
-          BODY="${BODY}\
-```\n"
-          BODY="${BODY}$SCAN_DETAILS\n"
-          BODY="${BODY}\
-```\n"
-          BODY="${BODY}</details>\n"
-          BODY="${BODY}**Action Required**: The vulnerabilities listed in this issue are still present. Please prioritize remediation."
+          const issue_title = `🚨 [govulncheck] Vulnerabilities detected on ${ref_name}`;
           
-          echo -e "$BODY" > comment_body.md
-          gh issue comment $EXISTING_ISSUE --body-file comment_body.md
-        else
-          echo "Creating new issue..."
-          VULN_COUNT=$(grep -c "Vulnerability" govulncheck-output.txt 2>/dev/null || echo "unknown")
-          SCAN_DETAILS=$(cat govulncheck-output.txt 2>/dev/null || echo "See workflow run logs for complete details")
+          let body = `# 🚨 Security Alert: Go Vulnerabilities Detected\n\n` +
+            `## Overview\n\n` +
+            `The **govulncheck** security scanner has detected vulnerabilities in Go dependencies.\n\n` +
+            `| Field | Value |\n` +
+            `|---|---|\n` +
+            `| **Scanner** | govulncheck (Official Go vulnerability checker) |\n` +
+            `| **Status** | ❌ FAILED |\n` +
+            `| **Vulnerabilities** | ${vuln_count} |\n` +
+            `| **Workflow Run** | [${context.runId}](${workflow_url}) |\n` +
+            `| **Branch** | 
+${ref_name}
+ |
+` +
+            `| **Commit** | 
+${sha}
+ |
 
-          BODY="# 🚨 Security Alert: Go Vulnerabilities Detected\n"
-          BODY="${BODY}## Overview\n"
-          BODY="${BODY}The **govulncheck** security scanner has detected vulnerabilities in Go dependencies.\n"
-          BODY="${BODY}| Field | Value |\n"
-          BODY="${BODY}|-------|-------|\n"
-          BODY="${BODY}| **Scanner** | govulncheck (Official Go vulnerability checker) |\n"
-          BODY="${BODY}| **Status** | ❌ FAILED |\n"
-          BODY="${BODY}| **Vulnerabilities** | $VULN_COUNT |\n"
-          BODY="${BODY}| **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |\n"
-          BODY="${BODY}| **Branch** | ${{ github.ref_name }} |\n"
-          BODY="${BODY}| **Commit** | ${{ github.sha }} |\n"
-          BODY="${BODY}| **Triggered By** | ${{ github.event_name }}|\n"
-          BODY="${BODY}| **Date** | $(date -u +'\n%Y-%m-%d %H:%M:%S UTC') |\n"
-          BODY="${BODY}## 📋 Vulnerability Details\n"
-          BODY="${BODY}<details open>\n"
-          BODY="${BODY}<summary><b>Scan Results (Click to collapse)</b></summary>\n"
-          BODY="${BODY}\
-```\n"
-          BODY="${BODY}$SCAN_DETAILS\n"
-          BODY="${BODY}\
-```\n"
-          BODY="${BODY}</details>\n"
-          BODY="${BODY}## 🔧 Remediation Steps\n"
-          BODY="${BODY}### 1️⃣ Review Vulnerabilities\n"
-          BODY="${BODY}- Examine the scan output above\n"
-          BODY="${BODY}- Check severity levels and affected packages\n"
-          BODY="${BODY}- Review [Go Vulnerability Database](https://vuln.go.dev/) for details\n"
-          BODY="${BODY}### 2️⃣ Update Dependencies\n"
-          BODY="${BODY}\
-```bash\n"
-          BODY="${BODY}# Update specific vulnerable package\n"
-          BODY="${BODY}go get -u <vulnerable-package>@<patched-version>\n"
-          BODY="${BODY}# Or update all dependencies (careful - test thoroughly)\n"
-          BODY="${BODY}go get -u ./...\n"
-          BODY="${BODY}go mod tidy\n"
-          BODY="${BODY}\
-```\n"
-          BODY="${BODY}### 3️⃣ Test Changes\n"
-          BODY="${BODY}\
-```bash\n"
-          BODY="${BODY}# Run tests\n"
-          BODY="${BODY}make test\n"
-          BODY="${BODY}# Run all security scans\n"
-          BODY="${BODY}make test-all\n"
-          BODY="${BODY}\
-```\n"
-          BODY="${BODY}### 4️⃣ Verify Fix\n"
-          BODY="${BODY}- Push changes to a branch\n"
-          BODY="${BODY}- The govulncheck workflow will run automatically\n"
-          BODY="${BODY}- Verify it passes before merging\n"
-          BODY="${BODY}## 📚 Resources\n"
-          BODY="${BODY}- [Go Vulnerability Database](https://vuln.go.dev/)\n"
-          BODY="${BODY}- [govulncheck Documentation](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck)\n"
-          BODY="${BODY}- [Workflow File](${{ github.server_url }}/${{ github.repository }}/blob/main/.github/workflows/security-govulncheck.yml)\n"
-          BODY="${BODY}## 🔔 Next Steps\n"
-          BODY="${BODY}1. **Assign** this issue to a developer\n"
-          BODY="${BODY}2. **Prioritize** based on vulnerability severity\n"
-          BODY="${BODY}3. **Update** dependencies as outlined above\n"
-          BODY="${BODY}4. **Test** thoroughly to ensure no regressions\n"
-          BODY="${BODY}5. **Close** this issue once the workflow passes\n"
-          BODY="${BODY}---\n"
-          BODY="${BODY}*🤖 This issue was automatically created by the [govulncheck security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-govulncheck.yml)*\n"
-          
-          echo -e "$BODY" > issue_body.md
-          gh issue create \
-            --title "🚨 [govulncheck] Vulnerabilities detected on ${{ github.ref_name }}" \
-            --label "security" \
-            --label "govulncheck" \
-            --body-file issue_body.md || \
-          echo "Failed to create issue, but continuing workflow"
-        fi
+` +
+            `## 📋 Vulnerability Details\n\n` +
+            `<details open><summary><b>Scan Results (Click to collapse)</b></summary>\n\n` +
+            

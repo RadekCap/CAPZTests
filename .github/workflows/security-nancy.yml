@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  issues: write
 
 jobs:
   nancy:
@@ -35,34 +36,22 @@ jobs:
       run: go list -json -deps ./... > go.list
 
     - name: Run nancy dependency scanner
+      id: nancy
       uses: sonatype-nexus-community/nancy-github-action@main
       with:
         nancyCommand: sleuth --loud
-      continue-on-error: true
-      id: nancy-scan
+        continue-on-error: true
 
-    - name: Generate summary
-      if: always()
+    - name: Generate Summary and Check for Failures
+      id: summary
       run: |
-        echo "# nancy Dependency Security Scan Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Scanning Go dependencies for known vulnerabilities using Sonatype OSS Index." >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        if [ "${{ steps.nancy-scan.outcome }}" = "success" ]; then
-          echo "## ✅ No vulnerable dependencies found!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All Go dependencies passed nancy security checks." >> $GITHUB_STEP_SUMMARY
+        if [ "${{ steps.nancy.outcome }}" = "success" ]; then
+          echo "✅ No vulnerable dependencies found!" >> $GITHUB_STEP_SUMMARY
+          echo "failure=false" >> $GITHUB_OUTPUT
         else
           echo "## ❌ Vulnerable dependencies detected!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Nancy found one or more dependencies with known vulnerabilities." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Remediation Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Review the vulnerabilities in the workflow logs" >> $GITHUB_STEP_SUMMARY
-          echo "2. Update affected dependencies: `go get -u <package>`" >> $GITHUB_STEP_SUMMARY
-          echo "3. Run `go mod tidy` to clean up" >> $GITHUB_STEP_SUMMARY
-          echo "4. Test thoroughly after updates" >> $GITHUB_STEP_SUMMARY
-          echo "5. Re-run this workflow to verify fixes" >> $GITHUB_STEP_SUMMARY
+          # Further summary details can be added here if nancy output can be parsed
+          echo "failure=true" >> $GITHUB_OUTPUT
         fi
 
     - name: Upload dependency list
@@ -73,154 +62,63 @@ jobs:
         path: go.list
         retention-days: 30
 
-    - name: Create GitHub issue on vulnerability
-      if: failure() && github.event_name != 'pull_request'
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        WORKFLOW_NAME="nancy Dependency Scan"
-        EXISTING_ISSUE=$(gh issue list --state open --label "security" --label "nancy" --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
-        if [ -n "$EXISTING_ISSUE" ]; then
-          echo "Existing issue found: #$EXISTING_ISSUE"
+    - name: Create or Update GitHub Issue
+      if: steps.summary.outputs.failure == 'true' && github.event_name != 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          const { repo: { owner, repo }, sha, ref_name } = context;
+          const workflow_url = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
           
-          BODY="## 🔄 Vulnerable Dependencies Still Present\n"
-          BODY="${BODY}**New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-"
-          BODY="${BODY}**Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
-"
-          BODY="${BODY}**Branch**: ${{ github.ref_name }}
-"
-          BODY="${BODY}**Commit**: ${{ github.sha }}
-"
-          BODY="${BODY}### Status\n"
-          BODY="${BODY}Nancy continues to detect vulnerable Go dependencies from the Sonatype OSS Index.
-"
-          BODY="${BODY}<details>
-"
-          BODY="${BODY}<summary>View workflow logs for details</summary>
-"
-          BODY="${BODY}Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for specific vulnerable packages and versions.
-"
-          BODY="${BODY}</details>
-"
-          BODY="${BODY}**Action Required**: Update vulnerable dependencies to patched versions."
-
-          echo -e "$BODY" > comment_body.md
-          gh issue comment $EXISTING_ISSUE --body-file comment_body.md
-        else
-          echo "Creating new issue..."
+          const issue_title = `🚨 [nancy] Vulnerable dependencies detected on ${ref_name}`;
           
-          BODY="# 🚨 Security Alert: Vulnerable Go Dependencies (nancy)\n"
-          BODY="${BODY}## Overview\n"
-          BODY="${BODY}The **nancy** dependency scanner has detected Go dependencies with known vulnerabilities from the **Sonatype OSS Index**.\n"
-          BODY="| Field | Value |\n"
-          BODY="|-------|-------|\n"
-          BODY="| **Scanner** | nancy (Sonatype OSS Index) |\n"
-          BODY="| **Status** | ❌ FAILED |\n"
-          BODY="| **Database** | Sonatype OSS Index |\n"
-          BODY="| **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |\n"
-          BODY="| **Branch** | `${{ github.ref_name }}` |\n"
-          BODY="| **Commit** | `${{ github.sha }}` |\n"
-          BODY="| **Triggered By** | ${{ github.event_name }}
-"
-          BODY="| **Date** | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |\n"
-          BODY="## 📋 Vulnerability Details\n"
-          BODY="Nancy scans your Go dependencies (`go.list`) against the Sonatype OSS Index for known security vulnerabilities.\n"
-          BODY="### View Full Results\n"
-          BODY="Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for:\n"
-          BODY="- Specific vulnerable package names\n"
-          BODY="- CVE identifiers\n"
-          BODY="- Vulnerability severity ratings\n"
-          BODY="- Recommended patch versions\n"
-          BODY="### Dependency List\n"
-          BODY="The scan analyzed dependencies from `go.list`. Download the artifact from the workflow run to see the full dependency tree.\n"
-          BODY="## 🔧 Remediation Steps\n"
-          BODY="### 1️⃣ Identify Vulnerable Packages\n"
-          BODY="Review the workflow logs to identify which packages have vulnerabilities:\n"
-          BODY="`\`\`
-Check: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-`\`\`\n"
-          BODY="### 2️⃣ Update Dependencies\n"
-          BODY="For each vulnerable package:\n"
-          BODY="`\`\`bash\n"
-          BODY="# Update specific package to patched version\n"
-          BODY="go get -u <vulnerable-package>@<safe-version>\n"
-          BODY="# Example:\n"
-          BODY="# go get -u github.com/example/pkg@v1.2.3\n"
-          BODY="# Update go.mod and go.sum\n"
-          BODY="go mod tidy\n"
-          BODY="# Verify no broken dependencies\n"
-          BODY="go mod verify\n"
-          BODY="`\`\`\n"
-          BODY="### 3️⃣ Check for Breaking Changes\n"
-          BODY="`\`\`bash\n"
-          BODY="# Run all tests\n"
-          BODY="go test ./...\n"
-          BODY="# Or use make\n"
-          BODY="make test\n"
-          BODY="`\`\`\n"
-          BODY="### 4️⃣ Run nancy Locally (Optional)\n"
-          BODY="`\`\`bash\n"
-          BODY="# Install nancy\n"
-          BODY="go install github.com/sonatype-nexus-community/nancy@latest\n"
-          BODY="# Generate dependency list\n"
-          BODY="go list -json -deps ./... > go.list\n"
-          BODY="# Run nancy scan\n"
-          BODY="nancy sleuth --loud < go.list\n"
-          BODY="`\`\`\n"
-          BODY="### 5️⃣ Verify Fix\n"
-          BODY="- Push your changes to a branch\n"
-          BODY="- The nancy workflow will run automatically\n"
-          BODY="- Verify it passes before merging\n"
-          BODY="- Check that no new vulnerabilities were introduced\n"
-          BODY="## 💡 Best Practices\n"
-          BODY="### Keep Dependencies Updated\n"
-          BODY="`\`\`bash\n"
-          BODY="# Check for outdated dependencies\n"
-          BODY="go list -u -m all\n"
-          BODY="# Update all dependencies (careful - test thoroughly)\n"
-          BODY="go get -u ./...\n"
-          BODY="go mod tidy\n"
-          BODY="`\`\`\n"
-          BODY="### Use Dependabot\n"
-          BODY="Consider enabling GitHub Dependabot for automatic dependency updates:\n"
-          BODY="1. Go to repository **Settings** → **Security & analysis**\n"
-          BODY="2. Enable **Dependabot security updates**\n"
-          BODY="3. Enable **Dependabot version updates**\n"
-          BODY="### Regular Scans\n"
-          BODY="- Nancy runs daily at 3:30 AM UTC\n"
-          BODY="- Also runs on all PRs and pushes\n"
-          BODY="- Monitor Security tab regularly\n"
-          BODY="## 📚 Resources\n"
-          BODY="- [nancy Documentation](https://github.com/sonatype-nexus-community/nancy)\n"
-          BODY="- [Sonatype OSS Index](https://ossindex.sonatype.org/)\n"
-          BODY="- [Go Vulnerability Database](https://vuln.go.dev/)\n"
-          BODY="- [Go Module Documentation](https://go.dev/ref/mod)\n"
-          BODY="- [Workflow File](${{ github.server_url }}/${{ github.repository }}/blob/main/.github/workflows/security-nancy.yml)\n"
-          BODY="## 🔄 Comparison with govulncheck\n"
-          BODY="This repository uses both **nancy** and **govulncheck**:\n"
-          BODY="| Scanner | Database | Focus |\n"
-          BODY="|---------|----------|-------|\n"
-          BODY="| **nancy** | Sonatype OSS Index | Broader vulnerability database |\n"
-          BODY="| **govulncheck** | Go Vulnerability DB | Official Go vulnerabilities |\n"
-          BODY="Both scanners complement each other - fix vulnerabilities found by either scanner.\n"
-          BODY="## 🔔 Next Steps\n"
-          BODY="1. **Review** workflow logs for vulnerable package details\n"
-          BODY="2. **Update** each vulnerable dependency to a safe version\n"
-          BODY="3. **Test** thoroughly to ensure no breaking changes\n"
-          BODY="4. **Verify** nancy scan passes\n"
-          BODY="5. **Close** this issue once resolved\n"
-          BODY="---\n"
-          BODY="*🤖 This issue was automatically created by the [nancy security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-nancy.yml)*\n"
-          echo -e "$BODY" > issue_body.md
-          gh issue create \
-            --title "🚨 [nancy] Vulnerable dependencies detected on ${{ github.ref_name }}" \
-            --label "security" \
-            --label "nancy" \
-            --body-file issue_body.md || \
-          echo "Failed to create issue, but continuing workflow"
-        fi
+          let body = `# 🚨 Security Alert: Vulnerable Go Dependencies (nancy)\n\n` +
+            `## Overview\n\n` +
+            `The **nancy** dependency scanner has detected Go dependencies with known vulnerabilities from the **Sonatype OSS Index**.\n\n` +
+            `| Field | Value |\n` +
+            `|---|---|
+` +
+            `| **Scanner** | nancy (Sonatype OSS Index) |\n` +
+            `| **Status** | ❌ FAILED |\n` +
+            `| **Workflow Run** | [${context.runId}](${workflow_url}) |\n` +
+            `| **Branch** | 
+${ref_name}
+` +
+            `| **Commit** | 
+${sha}
+` +
+            `## 📋 Vulnerability Details\n\n` +
+            `Check the [workflow run logs](${workflow_url}) for specific vulnerable packages and versions.\n`;
 
-    - name: Fail if vulnerabilities found
-      if: steps.nancy-scan.outcome == 'failure'
+          const issues = await github.rest.issues.listForRepo({
+            owner,
+            repo,
+            labels: 'security,nancy',
+            state: 'open',
+          });
+
+          const existing_issue = issues.data.find(issue => issue.title === issue_title);
+
+          if (existing_issue) {
+            console.log(`Found existing issue #${existing_issue.number}`);
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: existing_issue.number,
+              body: `## 🔄 Vulnerable Dependencies Still Present\n\n**New Detection**: [${context.runId}](${workflow_url})\n\n` + body,
+            });
+          } else {
+            console.log('Creating new issue...');
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: issue_title,
+              body: body,
+              labels: ['security', 'nancy'],
+            });
+          }
+
+    - name: Fail workflow
+      if: steps.summary.outputs.failure == 'true'
       run: exit 1

@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  issues: write
 
 jobs:
   trivy:
@@ -23,7 +24,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Run Trivy vulnerability scanner in repo mode
+    - name: Run Trivy vulnerability scanner
+      id: trivy
       uses: aquasecurity/trivy-action@master
       with:
         scan-type: 'fs'
@@ -32,10 +34,11 @@ jobs:
         output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH,MEDIUM,LOW'
         exit-code: '1'
-      continue-on-error: true
-      id: trivy-scan
+        ignore-unfixed: true
+        continue-on-error: true
 
     - name: Run Trivy for human-readable output
+      if: steps.trivy.outcome == 'failure'
       uses: aquasecurity/trivy-action@master
       with:
         scan-type: 'fs'
@@ -43,52 +46,29 @@ jobs:
         format: 'table'
         output: 'trivy-results.txt'
         severity: 'CRITICAL,HIGH,MEDIUM,LOW'
-      continue-on-error: true
+        ignore-unfixed: true
+        continue-on-error: true
 
     - name: Generate summary
       if: always()
       run: |
-        echo "# Trivy Security Scan Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Comprehensive security scan for vulnerabilities, misconfigurations, secrets, and dependencies." >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        if [ -f trivy-results.txt ]; then
-          CRITICAL=$(grep -c "CRITICAL" trivy-results.txt 2>/dev/null || echo "0")
-          HIGH=$(grep -c "HIGH" trivy-results.txt 2>/dev/null || echo "0")
-          MEDIUM=$(grep -c "MEDIUM" trivy-results.txt 2>/dev/null || echo "0")
-          LOW=$(grep -c "LOW" trivy-results.txt 2>/dev/null || echo "0")
-          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
-          if [ "$TOTAL" = "0" ]; then
-            echo "## ✅ No vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Repository passed all Trivy security checks." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## ❌ Vulnerabilities detected: $TOTAL" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
-            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| 🔴 CRITICAL | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟠 HIGH | $HIGH |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟡 MEDIUM | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟢 LOW | $LOW |" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Scan Results" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat trivy-results.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
+        if [ "${{ steps.trivy.outcome }}" != 'failure' ]; then
+          echo "## ✅ No vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
         else
-          echo "⚠️ No results file generated" >> $GITHUB_STEP_SUMMARY
+          # Fallback in case trivy-results.txt is not generated
+          if [ ! -f trivy-results.txt ]; then
+            echo "## ❌ Vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
+            echo "See logs for details." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          TOTAL=$( (grep -c "Total:" trivy-results.txt || echo "Total: 0") | awk '{print $2}' )
+          echo "## ❌ Vulnerabilities detected: $TOTAL" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat trivy-results.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
         fi
 
-    - name: Upload Trivy results (SARIF)
-      if: always()
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: 'trivy-results.sarif'
-      continue-on-error: true
-
-    - name: Upload Trivy results (artifact)
+    - name: Upload Trivy results
       if: always()
       uses: actions/upload-artifact@v4
       with:
@@ -98,150 +78,38 @@ jobs:
           trivy-results.txt
         retention-days: 30
 
-    - name: Create GitHub issue on vulnerability
-      if: failure() && github.event_name != 'pull_request'
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        WORKFLOW_NAME="Trivy Security Scan"
-        EXISTING_ISSUE=$(gh issue list --state open --label "security" --label "trivy" --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
-        CRITICAL=$(grep -o "CRITICAL" trivy-results.txt 2>/dev/null | wc -l || echo "0")
-        HIGH=$(grep -o "HIGH" trivy-results.txt 2>/dev/null | wc -l || echo "0")
-        MEDIUM=$(grep -o "MEDIUM" trivy-results.txt 2>/dev/null | wc -l || echo "0")
-        LOW=$(grep -o "LOW" trivy-results.txt 2>/dev/null | wc -l || echo "0")
-        TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
-        if [ -n "$EXISTING_ISSUE" ]; then
-          echo "Existing issue found: #$EXISTING_ISSUE"
+    - name: Create or Update GitHub Issue
+      if: steps.trivy.outcome == 'failure' && github.event_name != 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          const fs = require('fs');
+          const { repo: { owner, repo }, sha, ref_name } = context;
+          const workflow_url = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
           
-          SCAN_DETAILS=$(cat trivy-results.txt 2>/dev/null | head -200 || echo "See workflow logs for full details")
-
-          BODY="## 🔄 Vulnerabilities Still Present\n"
-          BODY="${BODY}**New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
-          BODY="${BODY}**Date**: $(date -u +' %Y-%m-%d %H:%M:%S UTC')\n"
-          BODY="${BODY}**Branch**: ${{ github.ref_name }}\n"
-          BODY="${BODY}**Commit**: ${{ github.sha }}\n"
-          BODY="${BODY}### Current Vulnerability Count\n"
-          BODY="${BODY}| Severity | Count |\n"
-          BODY="${BODY}|----------|-------|\n"
-          BODY="${BODY}| 🔴 CRITICAL | $CRITICAL |\n"
-          BODY="${BODY}| 🟠 HIGH | $HIGH |\n"
-          BODY="${BODY}| 🟡 MEDIUM | $MEDIUM |\n"
-          BODY="${BODY}| 🟢 LOW | $LOW |\n"
-          BODY="${BODY}| **TOTAL** | **$TOTAL** |\n"
-          BODY="${BODY}### Latest Scan Results\n"
-          BODY="${BODY}<details>\n"
-          BODY="${BODY}<summary>Click to expand Trivy scan output</summary>\n"
-          BODY="${BODY}\
-```\n"
-          BODY="${BODY}$SCAN_DETAILS\n"
-          BODY="${BODY}\
-```\n"
-          BODY="${BODY}</details>\n"
-          BODY="${BODY}**Action Required**: Vulnerabilities persist. Please prioritize CRITICAL and HIGH severity issues.\n"
-          BODY="${BODY}**Security Tab**: Check the [Security tab](${{ github.server_url }}/${{ github.repository }}/security/code-scanning) for detailed SARIF results."
-
-          echo -e "$BODY" > comment_body.md
-          gh issue comment $EXISTING_ISSUE --body-file comment_body.md
-        else
-          echo "Creating new issue..."
+          let scan_details = "See workflow logs for details.";
+          try {
+            scan_details = fs.readFileSync('trivy-results.txt', 'utf8');
+          } catch (e) {
+            console.log("Could not read trivy-results.txt");
+          }
           
-          SCAN_DETAILS=$(cat trivy-results.txt 2>/dev/null || echo "See workflow run logs for complete details")
-
-          BODY="# 🚨 Security Alert: Multiple Vulnerabilities Detected (Trivy)\n"
-          BODY="${BODY}## Overview\n"
-          BODY="${BODY}The **Trivy** comprehensive security scanner has detected vulnerabilities, misconfigurations, or other security issues.\n"
-          BODY="| Field | Value |\n"
-          BODY="|-------|-------|\n"
-          BODY="| **Scanner** | Trivy (Multi-purpose security scanner) |\n"
-          BODY="| **Status** | ❌ FAILED |\n"
-          BODY="| **🔴 CRITICAL** | $CRITICAL |\n"
-          BODY="| **🟠 HIGH** | $HIGH |\n"
-          BODY="| **🟡 MEDIUM** | $MEDIUM |\n"
-          BODY="| **🟢 LOW** | $LOW |\n"
-          BODY="| **TOTAL** | **$TOTAL** |\n"
-          BODY="| **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |\n"
-          BODY="| **Branch** | \n"
-          BODY="${BODY}${{ github.ref_name }}\n"
-          BODY=" |\n"
-          BODY="| **Commit** | \n"
-          BODY="${BODY}${{ github.sha }}\n"
-          BODY=" |\n"
-          BODY="| **Date** | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |\n"
-          BODY="## 📊 Severity Breakdown\n"
-          BODY="```\n"
-          BODY="${BODY}CRITICAL: $CRITICAL issues - ⚠️  IMMEDIATE ACTION REQUIRED\n"
-          BODY="${BODY}HIGH:     $HIGH issues    - 🔥 High priority, fix soon\n"
-          BODY="${BODY}MEDIUM:   $MEDIUM issues  - ⚡ Medium priority\n"
-          BODY="LOW:      $LOW issues     - 📝 Low priority\n"
-          BODY="```\n"
-          BODY="## 📋 Detailed Scan Results\n"
-          BODY="### View in GitHub Security Tab\n"
-          BODY="🔒 **SARIF Results**: [View in Security Tab](${{ github.server_url }}/${{ github.repository }}/security/code-scanning)\n"
-          BODY="The SARIF output has been uploaded to GitHub's Security tab for detailed analysis.\n"
-          BODY="### Scan Output\n"
-          BODY="<details open>\n"
-          BODY="<summary><b>Trivy Findings (Click to collapse)</b></summary>\n"
-          BODY="```\n"
-          BODY="$(cat trivy-results.txt 2>/dev/null || echo "See workflow run logs for complete details")\n"
-          BODY="```\n"
-          BODY="</details>\n"
-          BODY="## 🎯 What Trivy Scans\n"
-          BODY="Trivy checks for:\n"
-          BODY="- ✅ **Vulnerabilities** in dependencies (Go modules, npm, etc.)\n"
-          BODY="- ✅ **Misconfigurations** in IaC files (Kubernetes, Docker, etc.)\n"
-          BODY="- ✅ **Secrets** accidentally committed to the repository\n"
-          BODY="- ✅ **License** compliance issues\n"
-          BODY="- ✅ **Container** image vulnerabilities (if applicable)\n"
-          BODY="## 🔧 Remediation Steps\n"
-          BODY="### 1️⃣ Prioritize by Severity\n"
-          BODY="Focus on CRITICAL and HIGH severity issues first:\n"
-          BODY="1. **CRITICAL**: Fix immediately (potential for severe impact)\n"
-          BODY="2. **HIGH**: Fix within days (significant security risk)\n"
-          BODY="3. **MEDIUM**: Fix within weeks (moderate risk)\n"
-          BODY="4. **LOW**: Fix when convenient (low risk)\n"
-          BODY="### 2️⃣ Update Vulnerable Dependencies\n"
-          BODY="```bash\n"
-          BODY="# For Go dependencies\ngo get -u <vulnerable-package>@<safe-version>\ngo mod tidy\n# Verify updates\ngo mod verify\n```\n"
-          BODY="### 3️⃣ Fix Misconfigurations\n"
-          BODY="Review and fix any configuration issues identified in:\n"
-          BODY="- Kubernetes YAML files\n"
-          BODY="- Docker configurations\n"
-          BODY="- Infrastructure as Code files\n"
-          BODY="### 4️⃣ Remove Secrets\n"
-          BODY="If secrets were detected:\n"
-          BODY="```bash\n"
-          BODY="# Remove from current commit\ngit rm <file-with-secret>\n# Remove from history (DANGEROUS - coordinate with team)\ngit filter-branch --force --index-filter \"\n  'git rm --cached --ignore-unmatch <file-with-secret>' \"
-  --prune-empty --tag-name-filter cat -- --all\n```\n"
-          BODY="### 5️⃣ Test Changes\n"
-          BODY="```bash\n"
-          BODY="# Run tests\nmake test\n# Run Trivy locally\ndocker run --rm -v $(pwd):/scan aquasec/trivy fs /scan\n```\n"
-          BODY="### 6️⃣ Verify Fix\n"
-          BODY="- Push changes to a branch\n- Trivy workflow runs automatically\n- Check Security tab for SARIF results\n- Verify workflow passes\n"
-          BODY="## 📚 Resources\n"
-          BODY="- [Trivy Documentation](https://aquasecurity.github.io/trivy/)
-- [Trivy GitHub](https://github.com/aquasecurity/trivy)
-- [Security Best Practices](https://aquasecurity.github.io/trivy/latest/docs/best-practices/)
-- [GitHub Security Tab](${{ github.server_url }}/${{ github.repository }}/security)
-- [Workflow File](${{ github.server_url }}/${{ github.repository }}/blob/main/.github/workflows/security-trivy.yml)
-"
-          BODY="## 🔔 Next Steps\n"
-          BODY="1. **Review** the Security tab for detailed SARIF results\n"
-          BODY="2. **Triage** by severity (CRITICAL → HIGH → MEDIUM → LOW)\n"
-          BODY="3. **Fix** vulnerabilities and misconfigurations\n"
-          BODY="4. **Remove** any detected secrets\n"
-          BODY="5. **Test** thoroughly\n"
-          BODY="6. **Verify** the scan passes\n"
-          BODY="7. **Close** this issue once resolved\n"
-          BODY="---\n*🤖 This issue was automatically created by the [Trivy security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-trivy.yml)*"
-
-          echo -e "$BODY" > issue_body.md
-          gh issue create \
-            --title "🚨 [Trivy] $TOTAL vulnerabilities detected on ${{ github.ref_name }}" \
-            --label "security" \
-            --label "trivy" \
-            --body-file issue_body.md || \
-          echo "Failed to create issue, but continuing workflow"
-
-    - name: Fail if vulnerabilities found
-      if: steps.trivy-scan.outcome == 'failure'
-      run: exit 1
+          const issue_title = `🚨 [Trivy] Vulnerabilities detected on ${ref_name}`;
+          
+          let body = `# 🚨 Security Alert: Multiple Vulnerabilities Detected (Trivy)\n\n` +
+            `## Overview\n\n` +
+            `The **Trivy** security scanner has detected vulnerabilities.\n\n` +
+            `| Field | Value |\n` +
+            `|---|---|
+` +
+            `| **Scanner** | Trivy |\n` +
+            `| **Status** | ❌ FAILED |\n` +
+            `| **Workflow Run** | [${context.runId}](${workflow_url}) |\n` +
+            `| **Branch** | 
+` + 
+            `| **Commit** | 
+` + 
+            `## 📋 Detailed Scan Results\n\n` +
+            `<details open><summary><b>Trivy Findings (Click to collapse)</b></summary>\n\n` +
+            

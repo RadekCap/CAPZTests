@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  issues: write
 
 jobs:
   gosec:
@@ -29,39 +30,25 @@ jobs:
         go-version-file: 'go.mod'
 
     - name: Run gosec security scanner
+      id: gosec
       uses: securego/gosec@master
       with:
         args: '-fmt=json -out=gosec-results.json -stdout -verbose=text ./...'
-      continue-on-error: true
-      id: gosec-scan
+        continue-on-error: true
 
-    - name: Generate summary
-      if: always()
+    - name: Generate Summary and Check for Failures
+      id: summary
       run: |
-        echo "# gosec Security Scan Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        if [ -f gosec-results.json ]; then
-          ISSUES=$(jq -r '.Issues // [] | length' gosec-results.json 2>/dev/null || echo "0")
-          if [ "$ISSUES" = "0" ]; then
-            echo "## ✅ No security issues found!" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Go source code passed all gosec security checks." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## ❌ Security issues detected: $ISSUES" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Issues Found" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| Severity | Rule | File | Line | Details |" >> $GITHUB_STEP_SUMMARY
-            echo "|----------|------|------|------|---------|" >> $GITHUB_STEP_SUMMARY
-            jq -r '.Issues[] | "| \(.severity) | \(.rule_id) | \(.file) | \(.line) | \(.details) |"' gosec-results.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Recommendations" >> $GITHUB_STEP_SUMMARY
-            echo "1. Review each security issue listed above" >> $GITHUB_STEP_SUMMARY
-            echo "2. Apply recommended fixes from gosec documentation" >> $GITHUB_STEP_SUMMARY
-            echo "3. Re-run the scan to verify fixes" >> $GITHUB_STEP_SUMMARY
-          fi
+        if [ ! -f gosec-results.json ] || [ $(jq '.Issues | length' gosec-results.json) -eq 0 ]; then
+          echo "✅ No security issues found!" >> $GITHUB_STEP_SUMMARY
+          echo "failure=false" >> $GITHUB_OUTPUT
         else
-          echo "⚠️ No results file generated" >> $GITHUB_STEP_SUMMARY
+          ISSUES=$(jq '.Issues | length' gosec-results.json)
+          echo "## ❌ Security issues detected: $ISSUES" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Rule | File | Line | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          jq -r '.Issues[] | "| \(.severity) | \(.rule_id) | \(.file) | \(.line) | \(.details) |"' gosec-results.json >> $GITHUB_STEP_SUMMARY
+          echo "failure=true" >> $GITHUB_OUTPUT
         fi
 
     - name: Upload gosec results
@@ -72,124 +59,72 @@ jobs:
         path: gosec-results.json
         retention-days: 30
 
-    - name: Create GitHub issue on security findings
-      if: failure() && github.event_name != 'pull_request'
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        WORKFLOW_NAME="gosec Security Scan"
-        EXISTING_ISSUE=$(gh issue list --state open --label "security" --label "gosec" --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
-        if [ -n "$EXISTING_ISSUE" ]; then
-          echo "Existing issue found: #$EXISTING_ISSUE"
-          ISSUES=$(jq -r '.Issues // [] | length' gosec-results.json 2>/dev/null || echo "0")
+    - name: Create or Update GitHub Issue
+      if: steps.summary.outputs.failure == 'true' && github.event_name != 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          const fs = require('fs');
+          const { repo: { owner, repo }, sha, ref_name } = context;
+          const workflow_url = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
           
-          FINDINGS_DETAILS=""
-          if [ -f gosec-results.json ] && [ "$ISSUES" != "0" ]; then
-            FINDINGS_DETAILS=$(jq -r '.Issues[] | "**\(.severity)** - \(.rule_id) - `\(.file):\(.line)`\n\(.details)\n"' gosec-results.json 2>/dev/null | head -50)
-          else
-            FINDINGS_DETAILS="See workflow logs for details"
-          fi
-
-          BODY="## 🔄 Security Issues Still Present\n"
-          BODY="${BODY}**New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
-          BODY="${BODY}**Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')\n"
-          BODY="${BODY}**Branch**: ${{ github.ref_name }}\n"
-          BODY="${BODY}**Commit**: ${{ github.sha }}\n"
-          BODY="${BODY}**Issues Count**: $ISSUES\n"
-          BODY="${BODY}### Latest Findings\n"
-          BODY="${BODY}<details>\n"
-          BODY="${BODY}<summary>Click to expand gosec findings</summary>\n"
-          BODY="${BODY}$FINDINGS_DETAILS\n"
-          BODY="${BODY}</details>\n"
-          BODY="${BODY}**Action Required**: Security issues persist. Please review and fix."
-
-          echo -e "$BODY" > comment_body.md
-          gh issue comment $EXISTING_ISSUE --body-file comment_body.md
-        else
-          echo "Creating new issue..."
-          ISSUES=$(jq -r '.Issues // [] | length' gosec-results.json 2>/dev/null || echo "0")
-          HIGH=$(jq -r '[.Issues[] | select(.severity == "HIGH")] | length' gosec-results.json 2>/dev/null || echo "0")
-          MEDIUM=$(jq -r '[.Issues[] | select(.severity == "MEDIUM")] | length' gosec-results.json 2>/dev/null || echo "0")
-          LOW=$(jq -r '[.Issues[] | select(.severity == "LOW")] | length' gosec-results.json 2>/dev/null || echo "0")
+          const results = JSON.parse(fs.readFileSync('gosec-results.json', 'utf8'));
+          const issues = results.Issues;
           
-          FINDINGS_DETAILS=""
-          if [ -f gosec-results.json ] && [ "$ISSUES" != "0" ]; then
-            FINDINGS_DETAILS=$(jq -r '.Issues[] | "| \(.severity) | \(.rule_id) | `\(.file)` | \(.line) | \(.details) |"' gosec-results.json 2>/dev/null)
-          else
-            FINDINGS_DETAILS="See workflow logs for complete details"
-          fi
+          const issue_title = `🚨 [gosec] Security issues detected on ${ref_name}`;
+          
+          let body = `# 🚨 Security Alert: Code Security Issues Detected (gosec)\n\n` +
+            `## Overview\n\n` +
+            `The **gosec** security scanner has detected ${issues.length} issues.\n\n` +
+            `| Field | Value |\n` +
+            `|---|---|\n` +
+            `| **Scanner** | gosec |\n` +
+            `| **Status** | ❌ FAILED |\n` +
+            `| **Total Issues** | ${issues.length} |\n` +
+            `| **Workflow Run** | [${context.runId}](${workflow_url}) |\n` +
+            `| **Branch** | bind{ref_name}
+` +
+            `| **Commit** | bind{sha}
 
-          BODY="# 🚨 Security Alert: Code Security Issues Detected (gosec)\n"
-          BODY="${BODY}## Overview\n"
-          BODY="${BODY}The **gosec** source code security scanner has detected security issues in the Go codebase.\n"
-          BODY="| Field | Value |\n"
-          BODY="|-------|-------|\n"
-          BODY="| **Scanner** | gosec (Go AST security analyzer) |\n"
-          BODY="| **Status** | ❌ FAILED |\n"
-          BODY="| **Total Issues** | $ISSUES |\n"
-          BODY="| **🔴 HIGH** | $HIGH |\n"
-          BODY="| **🟡 MEDIUM** | $MEDIUM |\n"
-          BODY="| **🟢 LOW** | $LOW |\n"
-          BODY="| **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |\n"
-          BODY="| **Branch** | ${{ github.ref_name }} |\n"
-          BODY="| **Commit** | ${{ github.sha }} |\n"
-          BODY="| **Date** | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |\n"
-          BODY="## 📋 Security Issues Found\n"
-          BODY="<details open>\n"
-          BODY="<summary><b>Detailed Findings (Click to collapse)</b></summary>\n"
-          BODY="$FINDINGS_DETAILS\n"
-          BODY="</details>\n"
-          BODY="## 🔧 Remediation Steps\n"
-          BODY="### 1️⃣ Review Each Finding\n"
-          BODY="- Examine the security issues listed above\n"
-          BODY="- Understand the security risk for each\n"
-          BODY="- Check gosec documentation for the specific rule ID\n"
-          BODY="### 2️⃣ Fix Security Issues\n"
-          BODY="Common fixes:\n"
-          BODY="- **G104**: Add proper error handling\n"
-          BODY="- **G304**: Validate file paths or add `\#nosec` with justification\n"
-          BODY="- **G401/G501**: Use stronger crypto algorithms\n"
-          BODY="- **Others**: Follow gosec recommendations\n"
-          BODY="### 3️⃣ Suppress False Positives (If Appropriate)\n"
-          BODY="```go\n"
-          BODY="// #nosec G304 - Justification for why this is safe\n"
-          BODY="data, err := os.ReadFile(filePath)\n"
-          BODY="```\n"
-          BODY="### 4️⃣ Test Changes\n"
-          BODY="```bash\n"
-          BODY="# Run tests\n"
-          BODY="go test ./...\n"
-          BODY="# Run gosec locally\n"
-          BODY="go install github.com/securego/gosec/v2/cmd/gosec@latest\n"
-          BODY="gosec ./...\n"
-          BODY="```\n"
-          BODY="### 5️⃣ Verify Fix\n"
-          BODY="- Push changes to a branch\n"
-          BODY="- The gosec workflow will run automatically\n"
-          BODY="- Verify it passes before merging\n"
-          BODY="## 📚 Resources\n"
-          BODY="- [gosec Documentation](https://github.com/securego/gosec)\n"
-          BODY="- [Available Rules](https://github.com/securego/gosec#available-rules)\n"
-          BODY="- [CWE Database](https://cwe.mitre.org/)\n"
-          BODY="- [Workflow File](${{ github.server_url }}/${{ github.repository }}/blob/main/.github/workflows/security-gosec.yml)\n"
-          BODY="## 🔔 Next Steps\n"
-          BODY="1. **Triage** issues by severity (HIGH → MEDIUM → LOW)\n"
-          BODY="2. **Fix** legitimate security issues\n"
-          BODY="3. **Suppress** false positives with `\#nosec` and justification\n"
-          BODY="4. **Test** thoroughly to ensure no regressions\n"
-          BODY="5. **Close** this issue once the workflow passes\n"
-          BODY="---\n"
-          BODY="*🤖 This issue was automatically created by the [gosec security workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/security-gosec.yml)*\n"
+` +
+            `## 📋 Security Issues Found\n\n` +
+            `<details open><summary><b>Detailed Findings (Click to collapse)</b></summary>\n\n` +
+            `| Severity | Rule | File | Line | Details |\n` +
+            `|---|---|---|---|---|
+` +
+            issues.map(i => `| ${i.severity} | ${i.rule_id} | bind{i.file}
+ | ${i.line} | ${i.details} |`).join('\n') +
+            `\n\n</details>\n`;
 
-          echo -e "$BODY" > issue_body.md
-          gh issue create \
-            --title "🚨 [gosec] Security issues detected on ${{ github.ref_name }}" \
-            --label "security" \
-            --label "gosec" \
-            --body-file issue_body.md || \
-          echo "Failed to create issue, but continuing workflow"
-        fi
+          const issues_list = await github.rest.issues.listForRepo({
+            owner,
+            repo,
+            labels: 'security,gosec',
+            state: 'open',
+          });
 
-    - name: Fail if security issues found
-      if: steps.gosec-scan.outcome == 'failure'
+          const existing_issue = issues_list.data.find(issue => issue.title === issue_title);
+
+          if (existing_issue) {
+            console.log(`Found existing issue #${existing_issue.number}`);
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: existing_issue.number,
+              body: `## 🔄 Security Issues Still Present\n\n**New Detection**: [${context.runId}](${workflow_url})\n\n` + body,
+            });
+          } else {
+            console.log('Creating new issue...');
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: issue_title,
+              body: body,
+              labels: ['security', 'gosec'],
+            });
+          }
+
+    - name: Fail workflow
+      if: steps.summary.outputs.failure == 'true'
       run: exit 1
