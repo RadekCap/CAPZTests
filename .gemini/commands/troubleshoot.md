@@ -26,7 +26,7 @@ go version
 ```
 
 **Common Issues**:
-- Tool not installed → Install from CLAUDE.md prerequisites section
+- Tool not installed → Install from GEMINI.md prerequisites section
 - Tool wrong version → Check version requirements
 - PATH issues → Verify tools are in PATH
 
@@ -58,7 +58,7 @@ env | grep -E "ARO|MANAGEMENT|WORKLOAD|CLUSTER|AZURE|REGION|DEPLOYMENT_ENV|USER"
 
 **Common Issues**:
 - Missing required vars → Set in shell or `.env`
-- Incorrect values → Check against CLAUDE.md defaults
+- Incorrect values → Check against GEMINI.md defaults
 - Typos in variable names → Compare to `test/config.go`
 
 ### Step 4: Review Test Logs
@@ -208,7 +208,7 @@ Provide diagnosis as:
 📝 **Prevention**: [How to avoid this in future]
 
 **Related**:
-- Reference to CLAUDE.md section if applicable
+- Reference to GEMINI.md section if applicable
 - Link to specific test file with line numbers
 
 ## Escalation
@@ -217,4 +217,4 @@ If issue persists after these steps:
 1. Capture full test output: `go test -v ./test -run Test<Phase> 2>&1 | tee test-failure.log`
 2. Check GitHub issues for similar problems
 3. Review recent commits for breaking changes
-4. Verify CLAUDE.md is followed correctly
+4. Verify GEMINI.md is followed correctly

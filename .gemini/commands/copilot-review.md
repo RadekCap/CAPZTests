@@ -99,7 +99,7 @@ Process all GitHub Copilot code review findings for a pull request. Analyze each
    b. **Analyze the finding**:
       - Read the code context at $FILE_PATH:$LINE
       - Understand the suggestion in $COMMENT_BODY
-      - Evaluate if it aligns with repo patterns (CLAUDE.md)
+      - Evaluate if it aligns with repo patterns (GEMINI.md)
       - Check if it improves code quality, security, or maintainability
 
    c. **Make a decision**:
@@ -196,15 +196,15 @@ EOF
 
      - [List major changes]
 
-     Generated with Claude Code
-     Co-Authored-By: Claude <noreply@anthropic.com>"
+     Generated with Gemini Code
+     Co-Authored-By: Gemini <noreply@google.com>"
      ```
    - Provide summary of actions taken
 
 ## Important Guidelines
 
 - **Security findings**: ALWAYS implement security fixes unless there's a very strong reason not to
-- **Pattern compliance**: Prioritize fixes that align with CLAUDE.md patterns
+- **Pattern compliance**: Prioritize fixes that align with GEMINI.md patterns
 - **Test impact**: Consider if changes affect test behavior or idempotency
 - **Be thorough**: Every finding gets a response and resolution
 - **Be respectful**: Provide clear rationale for denials

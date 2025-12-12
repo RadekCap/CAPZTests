@@ -11,7 +11,7 @@ Update all documentation files to stay in sync with code changes in the ARO-CAPZ
 
 2. **Identify affected documentation**:
    - `README.md` - High-level overview, quick start, main workflow
-   - `CLAUDE.md` - Development guidelines, patterns, architecture
+   - `GEMINI.md` - Development guidelines, patterns, architecture
    - `test/README.md` - Detailed test suite documentation
    - `TEST_COVERAGE.md` - Test coverage analysis (if test coverage changed)
    - `docs/INTEGRATION.md` - Integration patterns (if integration changed)
@@ -25,7 +25,7 @@ Update all documentation files to stay in sync with code changes in the ARO-CAPZ
 - Prerequisites list is accurate
 - Repository structure is current
 
-### CLAUDE.md
+### GEMINI.md
 - Test Architecture section lists all test phases in order
 - Configuration variables are complete
 - Helper functions are documented
@@ -66,24 +66,24 @@ Update all documentation files to stay in sync with code changes in the ARO-CAPZ
 
 **When a new test phase is added**:
 - Add to README.md test execution section
-- Add to CLAUDE.md test architecture
+- Add to GEMINI.md test architecture
 - Add to test/README.md with full details
 - Add to Makefile and document the new target
 
 **When configuration changes**:
 - Update all env var lists in README.md
-- Update CLAUDE.md configuration section
+- Update GEMINI.md configuration section
 - Update test/README.md if it affects test behavior
 - Verify examples use correct variable names
 
 **When helper functions change**:
-- Update CLAUDE.md helper functions section
+- Update GEMINI.md helper functions section
 - Update test/README.md if patterns change
 - Ensure examples reflect new signatures
 
 **When workflow changes**:
 - Update README.md workflow description
-- Update CLAUDE.md development commands
+- Update GEMINI.md development commands
 - Update test/README.md test execution flow
 
 ## Output

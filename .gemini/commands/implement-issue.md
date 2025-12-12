@@ -41,7 +41,7 @@ Automatically analyze a GitHub issue, implement the required changes, and create
      - Reading issue description for file/path mentions
      - Searching codebase for relevant code patterns
      - Using Grep/Glob tools to find related files
-   - Check CLAUDE.md for repository-specific patterns and guidelines
+   - Check GEMINI.md for repository-specific patterns and guidelines
    - Create a mental implementation plan
 
 4. **Check current git status**
@@ -85,7 +85,7 @@ Automatically analyze a GitHub issue, implement the required changes, and create
    - Mark first task as in_progress
 
 8. **Implement the fix**
-   - Follow repository patterns from CLAUDE.md
+   - Follow repository patterns from GEMINI.md
    - Read existing code before making changes
    - Implement changes step-by-step, updating TodoWrite as you progress
    - For code changes:
@@ -131,9 +131,9 @@ Automatically analyze a GitHub issue, implement the required changes, and create
 
       Fixes #<issue-number>
 
-      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+      🤖 Generated with [Gemini Code](https://gemini.google.com)
 
-      Co-Authored-By: Claude <noreply@anthropic.com>
+      Co-Authored-By: Gemini <noreply@google.com>
       ```
     - Commit using:
       ```bash
@@ -159,7 +159,7 @@ Automatically analyze a GitHub issue, implement the required changes, and create
       - ## Changes
       - ## Testing
       - Fixes #<issue-number>
-      - 🤖 Generated with Claude Code
+      - 🤖 Generated with Gemini Code
     - Example:
       ```bash
       gh pr create --title "Add logging function (fixes #72)" --body "$(cat <<'EOF'
@@ -182,7 +182,7 @@ Automatically analyze a GitHub issue, implement the required changes, and create
 
       Fixes #72
 
-      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+      🤖 Generated with [Gemini Code](https://gemini.google.com)
       EOF
       )"
       ```
@@ -218,7 +218,7 @@ Automatically analyze a GitHub issue, implement the required changes, and create
       ### Pull Request
       The full implementation details are available in PR #<pr-number>
 
-      🤖 Automated implementation via [Claude Code](https://claude.com/claude-code)
+      🤖 Automated implementation via [Gemini Code](https://gemini.google.com)
       EOF
       )"
       ```
@@ -235,7 +235,7 @@ Automatically analyze a GitHub issue, implement the required changes, and create
 
 ### Code Quality
 - **Read before writing**: Always use Read tool to understand existing code before making changes
-- **Follow patterns**: Adhere to CLAUDE.md guidelines and existing code patterns
+- **Follow patterns**: Adhere to GEMINI.md guidelines and existing code patterns
 - **Test coverage**: Add tests for new functionality
 - **No over-engineering**: Only implement what's requested in the issue
 - **Security**: Check for common vulnerabilities (SQL injection, XSS, command injection, etc.)
@@ -289,7 +289,7 @@ Please check the issue number and try again
 
 ```
 User: /implement-issue 72
-Claude: Fetching issue #72...
+Gemini: Fetching issue #72...
 
 Issue #72: Fix typo in README.md
 Description: The word "teh" should be "the" in line 45 of README.md
@@ -313,7 +313,7 @@ Issue updated: https://github.com/RadekCap/CAPZTests/issues/72
 
 ```
 User: /implement-issue 75
-Claude: Fetching issue #75...
+Gemini: Fetching issue #75...
 
 Issue #75: Add helper function to validate cluster names
 Description: Create a ValidateClusterName() function that checks if a cluster name follows Kubernetes naming conventions...
@@ -321,7 +321,7 @@ Description: Create a ValidateClusterName() function that checks if a cluster na
 Analyzing issue... This requires:
 - New helper function in helpers.go
 - Tests in helpers_test.go
-- Update to CLAUDE.md documentation
+- Update to GEMINI.md documentation
 
 Creating branch feature-issue-75-validate-cluster-name...
 
@@ -339,7 +339,7 @@ Posted explanation on issue #75 ✅
 Files changed:
 - test/helpers.go (+25 lines)
 - test/helpers_test.go (+150 lines)
-- CLAUDE.md (+10 lines)
+- GEMINI.md (+10 lines)
 
 Pull Request: https://github.com/RadekCap/CAPZTests/pull/76
 Issue updated: https://github.com/RadekCap/CAPZTests/issues/75
@@ -349,7 +349,7 @@ Issue updated: https://github.com/RadekCap/CAPZTests/issues/75
 
 ```
 User: /implement-issue 77
-Claude: Fetching issue #77...
+Gemini: Fetching issue #77...
 
 Issue #77: Setup workflow failing on Mac runners
 Description: The test-setup workflow fails on macOS runners due to...
@@ -378,7 +378,7 @@ Issue updated: https://github.com/RadekCap/CAPZTests/issues/77
 
 After completing implementation, verify:
 - [ ] Issue requirements fully addressed
-- [ ] Code follows repository patterns (CLAUDE.md)
+- [ ] Code follows repository patterns (GEMINI.md)
 - [ ] Tests added for new functionality
 - [ ] All tests pass (or explanation why they can't run locally)
 - [ ] Code formatted (`go fmt ./...`)
@@ -397,7 +397,7 @@ After completing implementation, verify:
 4. **Test thoroughly**: Don't skip tests, they catch problems early
 5. **Ask for clarification**: If issue is ambiguous, use AskUserQuestion to clarify with user
 6. **Keep it focused**: Only implement what the issue requests, nothing more
-7. **Document as you go**: Update CLAUDE.md or other docs if your changes affect usage
+7. **Document as you go**: Update GEMINI.md or other docs if your changes affect usage
 
 ## Advanced Usage
 

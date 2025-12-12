@@ -45,8 +45,8 @@ For each test file, check and report on:
 - ❌ Check for unsafe file operations
 - ❌ Flag the known issue in `06_verification_test.go:68` (base64 decode vulnerability)
 
-### 7. CLAUDE.md Compliance
-- ✅ Follows patterns documented in CLAUDE.md
+### 7. GEMINI.md Compliance
+- ✅ Follows patterns documented in GEMINI.md
 - ✅ Aligns with test architecture (sequential, idempotent)
 - ✅ Uses proper logging and error handling
 - ❌ Report any deviations from documented patterns
@@ -62,7 +62,7 @@ Provide feedback as:
 
 ❌ **Issues Found:**
 - Issue description with `test/filename_test.go:123` reference
-- Suggested fix aligned with CLAUDE.md guidelines
+- Suggested fix aligned with GEMINI.md guidelines
 
 **Recommendations:**
 - Specific improvements or refactorings

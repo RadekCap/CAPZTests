@@ -21,7 +21,7 @@ Create a new test phase file for the ARO-CAPZ test suite following the establish
 
 4. Suggest documentation updates:
    - README.md (if high-level workflow changes)
-   - CLAUDE.md (add to test architecture section)
+   - GEMINI.md (add to test architecture section)
    - test/README.md (detailed test documentation)
 
 ## Test File Template
