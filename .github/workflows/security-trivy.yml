@@ -112,7 +112,7 @@ jobs:
         TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
         if [ -n "$EXISTING_ISSUE" ]; then
           echo "Existing issue found: #$EXISTING_ISSUE"
-          cat > comment_body.md <<'COMMENT_EOF'
+          cat > comment_body.md <<COMMENT_EOF
 ## 🔄 Vulnerabilities Still Present
 **New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
@@ -139,7 +139,7 @@ COMMENT_EOF
           gh issue comment $EXISTING_ISSUE --body-file comment_body.md
         else
           echo "Creating new issue..."
-          cat > issue_body.md <<'ISSUE_EOF'
+          cat > issue_body.md <<ISSUE_EOF
 # 🚨 Security Alert: Multiple Vulnerabilities Detected (Trivy)
 ## Overview
 The **Trivy** comprehensive security scanner has detected vulnerabilities, misconfigurations, or other security issues.
@@ -153,8 +153,12 @@ The **Trivy** comprehensive security scanner has detected vulnerabilities, misco
 | **🟢 LOW** | $LOW |
 | **TOTAL** | **$TOTAL** |
 | **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
-| **Branch** | `${{ github.ref_name }}` |
-| **Commit** | `${{ github.sha }}` |
+| **Branch** | 
+${{ github.ref_name }}
+ |
+| **Commit** | 
+${{ github.sha }}
+ |
 | **Date** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
 ## 📊 Severity Breakdown
 ```
@@ -246,6 +250,7 @@ ISSUE_EOF
             --label "trivy" \
             --body-file issue_body.md || \
           echo "Failed to create issue, but continuing workflow"
+        fi
 
     - name: Fail if vulnerabilities found
       if: steps.trivy-scan.outcome == 'failure'

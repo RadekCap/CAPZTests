@@ -69,7 +69,7 @@ jobs:
         EXISTING_ISSUE=$(gh issue list --state open --label "security" --label "govulncheck" --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
         if [ -n "$EXISTING_ISSUE" ]; then
           echo "Existing issue found: #$EXISTING_ISSUE"
-          cat > comment_body.md <<'COMMENT_EOF'
+          cat > comment_body.md <<COMMENT_EOF
 ## 🔄 Vulnerability Still Present
 **New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
@@ -88,7 +88,7 @@ COMMENT_EOF
         else
           echo "Creating new issue..."
           VULN_COUNT=$(grep -c "Vulnerability" govulncheck-output.txt 2>/dev/null || echo "unknown")
-          cat > issue_body.md <<'ISSUE_EOF'
+          cat > issue_body.md <<ISSUE_EOF
 # 🚨 Security Alert: Go Vulnerabilities Detected
 ## Overview
 The **govulncheck** security scanner has detected vulnerabilities in Go dependencies.
@@ -98,8 +98,12 @@ The **govulncheck** security scanner has detected vulnerabilities in Go dependen
 | **Status** | ❌ FAILED |
 | **Vulnerabilities** | $VULN_COUNT |
 | **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
-| **Branch** | `${{ github.ref_name }}` |
-| **Commit** | `${{ github.sha }}` |
+| **Branch** | 
+${{ github.ref_name }}
+ |
+| **Commit** | 
+${{ github.sha }}
+ |
 | **Triggered By** | ${{ github.event_name }} |
 | **Date** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
 ## 📋 Vulnerability Details

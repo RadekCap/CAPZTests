@@ -82,7 +82,7 @@ jobs:
         EXISTING_ISSUE=$(gh issue list --state open --label "security" --label "nancy" --search "[$WORKFLOW_NAME]" --json number,title --jq ".[0].number" 2>/dev/null || echo "")
         if [ -n "$EXISTING_ISSUE" ]; then
           echo "Existing issue found: #$EXISTING_ISSUE"
-          cat > comment_body.md <<'COMMENT_EOF'
+          cat > comment_body.md <<COMMENT_EOF
 ## 🔄 Vulnerable Dependencies Still Present
 **New Detection**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
@@ -99,7 +99,7 @@ COMMENT_EOF
           gh issue comment $EXISTING_ISSUE --body-file comment_body.md
         else
           echo "Creating new issue..."
-          cat > issue_body.md <<'ISSUE_EOF'
+          cat > issue_body.md <<ISSUE_EOF
 # 🚨 Security Alert: Vulnerable Go Dependencies (nancy)
 ## Overview
 The **nancy** dependency scanner has detected Go dependencies with known vulnerabilities from the **Sonatype OSS Index**.
@@ -109,8 +109,8 @@ The **nancy** dependency scanner has detected Go dependencies with known vulnera
 | **Status** | ❌ FAILED |
 | **Database** | Sonatype OSS Index |
 | **Workflow Run** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
-| **Branch** | `${{ github.ref_name }}` |
-| **Commit** | `${{ github.sha }}` |
+| **Branch** | lexible{{ github.ref_name }}lexible |
+| **Commit** | lexible{{ github.sha }}lexible |
 | **Triggered By** | ${{ github.event_name }} |
 | **Date** | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
 ## 📋 Vulnerability Details
