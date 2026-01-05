@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -34,6 +35,59 @@ func TestCheckDependencies_ToolAvailable(t *testing.T) {
 				t.Logf("Tool '%s' is available", tool)
 			}
 		})
+	}
+}
+
+// TestCheckDependencies_DockerDaemonRunning verifies the Docker daemon is running and accessible.
+// This catches issues early before Kind Cluster tests fail with confusing errors.
+// On macOS, provides instructions for starting Docker Desktop or Rancher Desktop.
+func TestCheckDependencies_DockerDaemonRunning(t *testing.T) {
+	// Skip if using podman instead of docker
+	if !CommandExists("docker") {
+		if CommandExists("podman") {
+			t.Skip("Using podman instead of docker, skipping Docker daemon check")
+			return
+		}
+		t.Skip("Docker not installed, skipping daemon check")
+		return
+	}
+
+	// Skip in CI environments where Docker may not be available
+	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Skip("Skipping Docker daemon check in CI environment")
+		return
+	}
+
+	// Check if docker daemon is responding
+	output, err := RunCommandQuiet(t, "docker", "info", "--format", "{{.ServerVersion}}")
+	if err != nil {
+		// Build platform-specific error message
+		var helpMessage string
+		switch runtime.GOOS {
+		case "darwin":
+			helpMessage = "\nTo start Docker on macOS, run one of:\n" +
+				"  open -a 'Rancher Desktop'\n" +
+				"  open -a 'Docker Desktop'\n" +
+				"  open -a Docker\n\n" +
+				"Then wait a few seconds for the daemon to start."
+		case "linux":
+			helpMessage = "\nTo start Docker on Linux, run:\n" +
+				"  sudo systemctl start docker\n\n" +
+				"Or check if the Docker socket exists:\n" +
+				"  ls -la /var/run/docker.sock"
+		default:
+			helpMessage = "\nPlease start your Docker daemon and try again."
+		}
+
+		t.Fatalf("Docker daemon is not running or not accessible.\n%s\n\nError: %v", helpMessage, err)
+		return
+	}
+
+	serverVersion := strings.TrimSpace(output)
+	if serverVersion == "" {
+		t.Log("Docker daemon is running (version unknown)")
+	} else {
+		t.Logf("Docker daemon is running, server version: %s", serverVersion)
 	}
 }
 
