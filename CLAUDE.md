@@ -155,6 +155,21 @@ See `docs/INTEGRATION.md` for detailed integration patterns.
 
 ## Environment Variables
 
+### Azure Authentication (Required)
+
+These environment variables are validated in the Check Dependencies phase. If missing, tests will fail with clear remediation instructions.
+
+- `AZURE_TENANT_ID` - Azure tenant ID (**required**)
+  ```bash
+  export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
+  ```
+- `AZURE_SUBSCRIPTION_ID` or `AZURE_SUBSCRIPTION_NAME` - Azure subscription identifier (**one required**)
+  ```bash
+  export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+  # OR
+  export AZURE_SUBSCRIPTION_NAME=$(az account show --query name -o tsv)
+  ```
+
 ### Repository Configuration
 - `ARO_REPO_URL` - cluster-api-installer URL (default: RadekCap/cluster-api-installer)
 - `ARO_REPO_BRANCH` - Branch to use (default: `ARO-ASO`)
@@ -168,7 +183,6 @@ See `docs/INTEGRATION.md` for detailed integration patterns.
 - `RESOURCE_GROUP` - Azure resource group
 - `OPENSHIFT_VERSION` - OpenShift version (default: `4.18`)
 - `REGION` - Azure region (default: `uksouth`)
-- `AZURE_SUBSCRIPTION_NAME` - Azure subscription ID (required for deployment)
 - `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`)
 - `USER` - User identifier (default: current user)
 
