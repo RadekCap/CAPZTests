@@ -317,7 +317,7 @@ func TestKindCluster_ASOControllerReady(t *testing.T) {
 // TestKindCluster_WebhooksReady waits for all admission webhooks to be responsive
 func TestKindCluster_WebhooksReady(t *testing.T) {
 	PrintTestHeader(t, "TestKindCluster_WebhooksReady",
-		"Wait for CAPI/CAPZ/ASO webhooks to accept connections (timeout: 5m)")
+		"Wait for CAPI/CAPZ/ASO/MCE webhooks to accept connections (timeout: 5m)")
 
 	config := NewTestConfig()
 	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
@@ -327,12 +327,14 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 		name      string
 		namespace string
 		service   string
+		port      int
 	}
 
 	webhooks := []webhookInfo{
-		{"CAPI", "capi-system", "capi-webhook-service"},
-		{"CAPZ", "capz-system", "capz-webhook-service"},
-		{"ASO", "capz-system", "azureserviceoperator-webhook-service"},
+		{"CAPI", "capi-system", "capi-webhook-service", 443},
+		{"CAPZ", "capz-system", "capz-webhook-service", 443},
+		{"ASO", "capz-system", "azureserviceoperator-webhook-service", 443},
+		{"MCE", "capi-system", "mce-capi-webhook-config-service", 9443},
 	}
 
 	timeout := 5 * time.Minute
@@ -347,7 +349,7 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 		iteration := 0
 
 		PrintToTTY("\n--- Checking %s webhook ---\n", wh.name)
-		PrintToTTY("Service: %s.%s.svc:443\n", wh.service, wh.namespace)
+		PrintToTTY("Service: %s.%s.svc:%d\n", wh.service, wh.namespace, wh.port)
 
 		for {
 			elapsed := time.Since(startTime)
@@ -377,7 +379,7 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 			// Test actual HTTPS connectivity using a temporary pod
 			// We use --rm and --restart=Never to create an ephemeral pod that cleans up after itself
 			// The curl command tests if the webhook server is accepting HTTPS connections
-			curlURL := fmt.Sprintf("https://%s.%s.svc:443/", wh.service, wh.namespace)
+			curlURL := fmt.Sprintf("https://%s.%s.svc:%d/", wh.service, wh.namespace, wh.port)
 
 			// Use a unique pod name to avoid conflicts
 			podName := fmt.Sprintf("webhook-test-%d", time.Now().UnixNano())
