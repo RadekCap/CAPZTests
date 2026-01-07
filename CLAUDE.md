@@ -381,6 +381,31 @@ Analyze a GitHub issue and automatically create a pull request with the implemen
 - Generates well-formatted commit messages and PR descriptions
 - Automatically references issue in commit and PR
 
+#### `/prepare-worktree`
+Create a git worktree for implementing a GitHub issue in an isolated directory.
+
+**Use when**: You want to work on an issue without affecting your current work (e.g., while tests are running)
+
+**What it does**:
+- Fetches issue details from GitHub
+- Creates a git worktree with a branch named after the issue
+- Worktree is created as a sibling directory (e.g., `../CAPZTests-issue-263-...`)
+- Copies the `cd` command to clipboard (macOS)
+- Prints clear next steps
+
+**Example**: `/prepare-worktree 263`
+
+**Workflow**:
+1. Run `/prepare-worktree 263` in your main worktree
+2. Open new terminal, paste command from clipboard
+3. Run `/implement-issue 263` in the new Claude instance
+4. After PR is merged, clean up with `git worktree remove <path>`
+
+**Why use this**:
+- Keep your main branch clean while working on issues
+- Work on multiple issues in parallel
+- Don't interrupt long-running tests or builds
+
 ### Using Slash Commands
 
 Simply type the command in Claude Code:
