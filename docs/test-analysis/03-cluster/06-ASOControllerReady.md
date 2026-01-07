@@ -1,6 +1,6 @@
-# Test 5: TestKindCluster_ASOControllerReady
+# Test 6: TestKindCluster_ASOControllerReady
 
-**Location:** `test/03_cluster_test.go:262-315`
+**Location:** `test/03_cluster_test.go:384-437`
 
 **Purpose:** Wait for Azure Service Operator controller manager to become available (timeout: 10m).
 
@@ -110,6 +110,6 @@ In the context of CAPZ, ASO is used to provision Azure infrastructure (VNets, su
 |------|-----------|------------|---------|
 | Test 3 | `capi-system` | `capi-controller-manager` | Core Cluster API |
 | Test 4 | `capz-system` | `capz-controller-manager` | Azure provider for CAPI |
-| Test 5 | `capz-system` | `azureserviceoperator-controller-manager` | Azure resource management |
+| Test 6 | `capz-system` | `azureserviceoperator-controller-manager` | Azure resource management |
 
 All three tests use identical polling logic with 10m timeout and 10s intervals.

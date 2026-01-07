@@ -30,14 +30,14 @@ make test-all
 
 | Phase | Make Target | Test File | Tests | Timeout | Description |
 |-------|-------------|-----------|-------|---------|-------------|
-| 1 | [_check-dep](01-check-dependencies/00-Overview.md) | `01_check_dependencies_test.go` | 6 | 2m | Verify tools and authentication |
+| 1 | [_check-dep](01-check-dependencies/00-Overview.md) | `01_check_dependencies_test.go` | 9 | 2m | Verify tools and authentication |
 | 2 | [_setup](02-setup/00-Overview.md) | `02_setup_test.go` | 3 | 2m | Clone repository, verify scripts |
-| 3 | [_cluster](03-cluster/00-Overview.md) | `03_cluster_test.go` | 5 | 30m | Deploy Kind cluster with controllers |
+| 3 | [_cluster](03-cluster/00-Overview.md) | `03_cluster_test.go` | 7 | 30m | Deploy Kind cluster with controllers |
 | 4 | [_generate-yamls](04-generate-yamls/00-Overview.md) | `04_generate_yamls_test.go` | 4 | 20m | Generate YAML manifests |
 | 5 | [_deploy-crs](05-deploy-crs/00-Overview.md) | `05_deploy_crs_test.go` | 7 | 40m | Apply CRs, wait for deployment |
 | 6 | [_verify](06-verification/00-Overview.md) | `06_verification_test.go` | 5 | 20m | Validate workload cluster |
 
-**Total: 30 tests across 6 phases**
+**Total: 35 tests across 6 phases**
 
 ---
 
@@ -46,8 +46,10 @@ make test-all
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           PHASE 1: CHECK DEPENDENCIES                        │
-│  Tools: docker, kind, az, oc, helm, git, kubectl, go                        │
-│  Auth: Azure CLI login                                                       │
+│  Tools: docker, kind, az (AZ_COMMAND), oc, helm, git, kubectl, go, clusterctl│
+│  Daemon: Docker daemon running check                                         │
+│  Auth: Azure CLI login, auto-extract tenant/subscription IDs                │
+│  Creds: Docker credential helper check (macOS)                              │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -62,7 +64,8 @@ make test-all
 │                             PHASE 3: CLUSTER                                 │
 │  Create: kind create cluster, helm install cert-manager                     │
 │  Deploy: helm template charts/cluster-api | kubectl apply                   │
-│  Wait: kubectl wait deployment/capi-controller-manager                      │
+│  Patch: ASO credentials secret with Azure credentials                       │
+│  Wait: CAPI, CAPZ, ASO controllers + all webhooks ready                     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -76,7 +79,8 @@ make test-all
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           PHASE 5: DEPLOY CRS                                │
-│  Apply: kubectl apply -f credentials.yaml, is.yaml, aro.yaml                │
+│  Health: Wait for cluster healthy before applying                           │
+│  Apply: kubectl apply -f credentials.yaml, is.yaml, aro.yaml (with retry)  │
 │  Monitor: clusterctl describe cluster                                        │
 │  Wait: Poll arocontrolplane until status.ready=true (45m timeout)           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -131,11 +135,14 @@ docs/test-analysis/
 ├── 01-check-dependencies/
 │   ├── 00-Overview.md
 │   ├── 01-ToolAvailable.md
-│   ├── 02-AzureCLILogin.md
-│   ├── 03-OpenShiftCLI.md
-│   ├── 04-Helm.md
-│   ├── 05-Kind.md
-│   └── 06-DockerCredentialHelper.md
+│   ├── 02-DockerDaemonRunning.md
+│   ├── 03-AzureCLILogin.md
+│   ├── 04-AzureEnvironment.md
+│   ├── 05-OpenShiftCLI.md
+│   ├── 06-Helm.md
+│   ├── 07-Kind.md
+│   ├── 08-Clusterctl.md
+│   └── 09-DockerCredentialHelper.md
 ├── 02-setup/
 │   ├── 00-Overview.md
 │   ├── 01-CloneRepository.md
@@ -147,7 +154,9 @@ docs/test-analysis/
 │   ├── 02-CAPINamespacesExists.md
 │   ├── 03-CAPIControllerReady.md
 │   ├── 04-CAPZControllerReady.md
-│   └── 05-ASOControllerReady.md
+│   ├── 05-ASOCredentialsConfigured.md
+│   ├── 06-ASOControllerReady.md
+│   └── 07-WebhooksReady.md
 ├── 04-generate-yamls/
 │   ├── 00-Overview.md
 │   ├── 01-GenerateResources.md

@@ -1,6 +1,6 @@
-# Test 5: TestCheckDependencies_Kind_IsAvailable
+# Test 7: TestCheckDependencies_Kind_IsAvailable
 
-**Location:** `test/01_check_dependencies_test.go:80-89`
+**Location:** `test/01_check_dependencies_test.go:247-256`
 
 **Purpose:** Verify Kind (Kubernetes in Docker) is installed.
 

@@ -1,6 +1,6 @@
-# Test 3: TestCheckDependencies_OpenShiftCLI_IsAvailable
+# Test 5: TestCheckDependencies_OpenShiftCLI_IsAvailable
 
-**Location:** `test/01_check_dependencies_test.go:58-67`
+**Location:** `test/01_check_dependencies_test.go:225-234`
 
 **Purpose:** Verify OpenShift CLI (oc) is functional and get its version.
 
