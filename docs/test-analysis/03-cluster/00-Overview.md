@@ -18,7 +18,9 @@ Deploy a Kind cluster with CAPI, CAPZ, and ASO controllers, then verify all cont
 | 2 | [02-CAPINamespacesExists](02-CAPINamespacesExists.md) | `TestKindCluster_CAPINamespacesExists` | Verify CAPI namespaces exist |
 | 3 | [03-CAPIControllerReady](03-CAPIControllerReady.md) | `TestKindCluster_CAPIControllerReady` | Wait for CAPI controller (10m timeout) |
 | 4 | [04-CAPZControllerReady](04-CAPZControllerReady.md) | `TestKindCluster_CAPZControllerReady` | Wait for CAPZ controller (10m timeout) |
-| 5 | [05-ASOControllerReady](05-ASOControllerReady.md) | `TestKindCluster_ASOControllerReady` | Wait for ASO controller (10m timeout) |
+| 5 | [05-ASOCredentialsConfigured](05-ASOCredentialsConfigured.md) | `TestKindCluster_ASOCredentialsConfigured` | Validate ASO credentials (currently skipped) |
+| 6 | [06-ASOControllerReady](06-ASOControllerReady.md) | `TestKindCluster_ASOControllerReady` | Wait for ASO controller (10m timeout) |
+| 7 | [07-WebhooksReady](07-WebhooksReady.md) | `TestKindCluster_WebhooksReady` | Wait for CAPI/CAPZ/ASO/MCE webhooks (5m timeout) |
 
 ---
 
@@ -33,12 +35,12 @@ Deploy a Kind cluster with CAPI, CAPZ, and ASO controllers, then verify all cont
 ┌─────────────────────────────────────────────────────────────────┐
 │  Test 1: KindClusterReady                                        │
 │  ├── Check if cluster exists (kind get clusters)                 │
-│  ├── If not: run deploy-charts-kind-capz.sh                      │
+│  ├── If not: ensure Azure credentials, run deploy-charts-kind-capz│
 │  │   ├── Create Kind cluster                                     │
 │  │   ├── Install cert-manager                                    │
 │  │   ├── Deploy CAPI charts                                      │
 │  │   ├── Deploy CAPZ charts                                      │
-│  │   └── Wait for controllers                                    │
+│  │   └── Patch ASO credentials secret                            │
 │  └── Verify: kubectl get nodes                                   │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -64,9 +66,23 @@ Deploy a Kind cluster with CAPI, CAPZ, and ASO controllers, then verify all cont
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Test 5: ASOControllerReady                                      │
+│  Test 5: ASOCredentialsConfigured (SKIPPED)                      │
+│  └── Validates aso-controller-settings secret                    │
+│  └── Currently skipped: requires service principal               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Test 6: ASOControllerReady                                      │
 │  └── Poll until azureserviceoperator-controller-manager          │
 │      Available=True                                              │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Test 7: WebhooksReady                                           │
+│  └── Check CAPI, CAPZ, ASO, MCE webhooks are responsive         │
+│  └── Uses curl from ephemeral pod to test HTTPS connectivity    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

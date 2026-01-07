@@ -1,6 +1,6 @@
-# Test 6: TestCheckDependencies_DockerCredentialHelper
+# Test 9: TestCheckDependencies_DockerCredentialHelper
 
-**Location:** `test/01_check_dependencies_test.go:91-175`
+**Location:** `test/01_check_dependencies_test.go:299-384`
 
 **Purpose:** Check that Docker credential helpers configured in `~/.docker/config.json` are available in PATH. Only runs on macOS.
 

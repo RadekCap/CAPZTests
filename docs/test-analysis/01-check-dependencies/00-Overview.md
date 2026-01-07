@@ -16,12 +16,15 @@ Verify all required tools are installed and properly configured before running t
 
 | # | Test | Purpose |
 |---|------|---------|
-| 1 | [01-ToolAvailable](01-ToolAvailable.md) | Check all required CLI tools are in PATH |
-| 2 | [02-AzureCLILogin](02-AzureCLILogin.md) | Verify Azure CLI is logged in |
-| 3 | [03-OpenShiftCLI](03-OpenShiftCLI.md) | Verify OpenShift CLI is functional |
-| 4 | [04-Helm](04-Helm.md) | Verify Helm is installed |
-| 5 | [05-Kind](05-Kind.md) | Verify Kind is installed |
-| 6 | [06-DockerCredentialHelper](06-DockerCredentialHelper.md) | Check Docker credential helpers (macOS only) |
+| 1 | [01-ToolAvailable](01-ToolAvailable.md) | Check all required CLI tools are in PATH (including az via AZ_COMMAND) |
+| 2 | [02-DockerDaemonRunning](02-DockerDaemonRunning.md) | Verify Docker daemon is running and accessible |
+| 3 | [03-AzureCLILogin](03-AzureCLILogin.md) | Verify Azure CLI is logged in |
+| 4 | [04-AzureEnvironment](04-AzureEnvironment.md) | Validate and auto-extract Azure environment variables |
+| 5 | [05-OpenShiftCLI](05-OpenShiftCLI.md) | Verify OpenShift CLI is functional |
+| 6 | [06-Helm](06-Helm.md) | Verify Helm is installed |
+| 7 | [07-Kind](07-Kind.md) | Verify Kind is installed |
+| 8 | [08-Clusterctl](08-Clusterctl.md) | Check if clusterctl is available (informational) |
+| 9 | [09-DockerCredentialHelper](09-DockerCredentialHelper.md) | Check Docker credential helpers (macOS only) |
 
 ---
 
@@ -35,36 +38,58 @@ Verify all required tools are installed and properly configured before running t
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Test 1: ToolAvailable                                           │
-│  └── Check: docker, kind, az, oc, helm, git, kubectl, go        │
+│  └── Check: docker, kind, oc, helm, git, kubectl, go            │
+│  └── Check: az (via AZ_COMMAND env var or system PATH)          │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Test 2: AzureCLILogin                                           │
+│  Test 2: DockerDaemonRunning                                     │
+│  └── Run: docker info --format {{.ServerVersion}}               │
+│  └── Skip if: using podman or in CI environment                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Test 3: AzureCLILogin                                           │
 │  └── Run: az account show                                        │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Test 3: OpenShiftCLI                                            │
+│  Test 4: AzureEnvironment                                        │
+│  └── Check AZURE_TENANT_ID (auto-extract from az if missing)    │
+│  └── Check AZURE_SUBSCRIPTION_ID/NAME (auto-extract if missing) │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Test 5: OpenShiftCLI                                            │
 │  └── Run: oc version --client                                    │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Test 4: Helm                                                    │
+│  Test 6: Helm                                                    │
 │  └── Run: helm version --short                                   │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Test 5: Kind                                                    │
+│  Test 7: Kind                                                    │
 │  └── Run: kind version                                           │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Test 6: DockerCredentialHelper (macOS only)                     │
+│  Test 8: Clusterctl                                              │
+│  └── Check: clusterctl in PATH                                   │
+│  └── Informational only (not required for Phase 1)              │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Test 9: DockerCredentialHelper (macOS only)                     │
 │  └── Parse ~/.docker/config.json and verify helpers exist       │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -77,9 +102,10 @@ Verify all required tools are installed and properly configured before running t
 |------|---------|-------------|
 | `docker` | Container runtime | `podman` |
 | `kind` | Kubernetes in Docker | - |
-| `az` | Azure CLI | - |
+| `az` | Azure CLI (supports AZ_COMMAND env var) | - |
 | `oc` | OpenShift CLI | - |
 | `helm` | Kubernetes package manager | - |
 | `git` | Version control | - |
 | `kubectl` | Kubernetes CLI | - |
 | `go` | Go runtime | - |
+| `clusterctl` | Cluster API CLI (optional) | Provided by cluster-api-installer |

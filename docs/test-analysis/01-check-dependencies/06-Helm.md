@@ -1,6 +1,6 @@
-# Test 4: TestCheckDependencies_Helm_IsAvailable
+# Test 6: TestCheckDependencies_Helm_IsAvailable
 
-**Location:** `test/01_check_dependencies_test.go:69-78`
+**Location:** `test/01_check_dependencies_test.go:236-245`
 
 **Purpose:** Verify Helm is installed and functional.
 

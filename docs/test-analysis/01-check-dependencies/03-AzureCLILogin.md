@@ -1,6 +1,6 @@
-# Test 2: TestCheckDependencies_AzureCLILogin_IsLoggedIn
+# Test 3: TestCheckDependencies_AzureCLILogin_IsLoggedIn
 
-**Location:** `test/01_check_dependencies_test.go:40-56`
+**Location:** `test/01_check_dependencies_test.go:108-124`
 
 **Purpose:** Verify Azure CLI is logged in with valid credentials.
 
