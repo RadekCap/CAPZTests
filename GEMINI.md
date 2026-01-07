@@ -170,7 +170,7 @@ See `docs/INTEGRATION.md` for detailed integration patterns.
 - `REGION` - Azure region (default: `uksouth`)
 - `AZURE_SUBSCRIPTION_NAME` - Azure subscription ID (required for deployment)
 - `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`)
-- `USER` - User identifier (default: current user)
+- `USER` - User identifier for domain prefix (default: `rcap`)
 
 ### Test Behavior
 - `DEPLOYMENT_TIMEOUT` - Control plane deployment timeout (default: `45m`, format: Go duration like `1h`, `45m`)

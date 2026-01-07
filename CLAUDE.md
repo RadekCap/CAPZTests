@@ -191,7 +191,7 @@ These environment variables are validated in the Check Dependencies phase. If mi
 - `OPENSHIFT_VERSION` - OpenShift version (default: `4.18`)
 - `REGION` - Azure region (default: `uksouth`)
 - `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`)
-- `USER` - User identifier (default: current user)
+- `USER` - User identifier for domain prefix (default: `rcap`)
 
 ### Test Behavior
 - `DEPLOYMENT_TIMEOUT` - Control plane deployment timeout (default: `45m`, format: Go duration like `1h`, `45m`)

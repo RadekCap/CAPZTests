@@ -77,7 +77,7 @@ func NewTestConfig() *TestConfig {
 		Region:                GetEnvOrDefault("REGION", "uksouth"),
 		AzureSubscription:     os.Getenv("AZURE_SUBSCRIPTION_NAME"),
 		Environment:           GetEnvOrDefault("DEPLOYMENT_ENV", "stage"),
-		User:                  GetEnvOrDefault("USER", os.Getenv("USER")),
+		User:                  GetEnvOrDefault("USER", "rcap"),
 
 		// Paths
 		ClusterctlBinPath: GetEnvOrDefault("CLUSTERCTL_BIN", "./bin/clusterctl"),
