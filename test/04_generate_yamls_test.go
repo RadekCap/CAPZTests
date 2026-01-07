@@ -15,6 +15,15 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 		t.Skipf("Repository not cloned yet at %s", config.RepoDir)
 	}
 
+	// Validate domain prefix length before attempting YAML generation
+	// The domain prefix is derived from USER and DEPLOYMENT_ENV and must not exceed 15 characters
+	if err := ValidateDomainPrefix(config.User, config.Environment); err != nil {
+		t.Fatalf("Domain prefix validation failed: %v", err)
+	}
+	t.Logf("Domain prefix validation passed: '%s' (%d chars)",
+		GetDomainPrefix(config.User, config.Environment),
+		len(GetDomainPrefix(config.User, config.Environment)))
+
 	genScriptPath := filepath.Join(config.RepoDir, config.GenScriptPath)
 	if !FileExists(genScriptPath) {
 		t.Errorf("Generation script not found: %s", genScriptPath)

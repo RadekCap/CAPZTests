@@ -568,3 +568,160 @@ func TestFormatAROControlPlaneConditions(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDomainPrefix(t *testing.T) {
+	tests := []struct {
+		name        string
+		user        string
+		environment string
+		expected    string
+	}{
+		{
+			name:        "short user and env",
+			user:        "bob",
+			environment: "dev",
+			expected:    "bob-dev",
+		},
+		{
+			name:        "longer user and env",
+			user:        "radoslavcap",
+			environment: "stage",
+			expected:    "radoslavcap-stage",
+		},
+		{
+			name:        "empty user",
+			user:        "",
+			environment: "prod",
+			expected:    "-prod",
+		},
+		{
+			name:        "empty environment",
+			user:        "test",
+			environment: "",
+			expected:    "test-",
+		},
+		{
+			name:        "both empty",
+			user:        "",
+			environment: "",
+			expected:    "-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetDomainPrefix(tt.user, tt.environment)
+			if result != tt.expected {
+				t.Errorf("GetDomainPrefix(%q, %q) = %q, expected %q",
+					tt.user, tt.environment, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestValidateDomainPrefix(t *testing.T) {
+	tests := []struct {
+		name        string
+		user        string
+		environment string
+		expectError bool
+		errorMsgs   []string // Substrings to check in error message
+	}{
+		// Valid cases (15 chars or less)
+		{
+			name:        "exactly 15 chars",
+			user:        "user1234567",
+			environment: "dev",
+			expectError: false, // "user1234567-dev" = 15 chars
+		},
+		{
+			name:        "short prefix - 7 chars",
+			user:        "bob",
+			environment: "dev",
+			expectError: false, // "bob-dev" = 7 chars
+		},
+		{
+			name:        "short prefix - single chars",
+			user:        "a",
+			environment: "b",
+			expectError: false, // "a-b" = 3 chars
+		},
+		{
+			name:        "14 chars - just under limit",
+			user:        "testuser12",
+			environment: "dev",
+			expectError: false, // "testuser12-dev" = 14 chars
+		},
+
+		// Invalid cases (over 15 chars)
+		{
+			name:        "16 chars - just over limit",
+			user:        "radoslavcap",
+			environment: "test",
+			expectError: true, // "radoslavcap-test" = 16 chars
+			errorMsgs:   []string{"exceeds maximum length", "16 chars", "15"},
+		},
+		{
+			name:        "17 chars - original failing case",
+			user:        "radoslavcap",
+			environment: "stage",
+			expectError: true, // "radoslavcap-stage" = 17 chars
+			errorMsgs:   []string{"exceeds maximum length", "17 chars", "radoslavcap-stage"},
+		},
+		{
+			name:        "very long prefix",
+			user:        "verylongusername",
+			environment: "production",
+			expectError: true, // "verylongusername-production" = 27 chars
+			errorMsgs:   []string{"exceeds maximum length", "27 chars", "Suggestion"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateDomainPrefix(tt.user, tt.environment)
+
+			if tt.expectError {
+				if err == nil {
+					prefix := GetDomainPrefix(tt.user, tt.environment)
+					t.Errorf("ValidateDomainPrefix(%q, %q) expected error for prefix %q (%d chars), got nil",
+						tt.user, tt.environment, prefix, len(prefix))
+					return
+				}
+				// Check error message contains expected substrings
+				for _, msg := range tt.errorMsgs {
+					if !strings.Contains(err.Error(), msg) {
+						t.Errorf("ValidateDomainPrefix(%q, %q) error = %q, expected to contain %q",
+							tt.user, tt.environment, err.Error(), msg)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("ValidateDomainPrefix(%q, %q) unexpected error: %v",
+						tt.user, tt.environment, err)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateDomainPrefix_MaxLength(t *testing.T) {
+	// Verify the MaxDomainPrefixLength constant is correct
+	if MaxDomainPrefixLength != 15 {
+		t.Errorf("MaxDomainPrefixLength = %d, expected 15", MaxDomainPrefixLength)
+	}
+
+	// Test boundary: exactly at the limit should pass
+	// "12345678901-abc" = 15 chars (11 + 1 + 3)
+	err := ValidateDomainPrefix("12345678901", "abc")
+	if err != nil {
+		t.Errorf("ValidateDomainPrefix at exactly 15 chars should pass, got error: %v", err)
+	}
+
+	// Test boundary: one char over should fail
+	// "12345678901-abcd" = 16 chars (11 + 1 + 4)
+	err = ValidateDomainPrefix("12345678901", "abcd")
+	if err == nil {
+		t.Error("ValidateDomainPrefix at 16 chars should fail, got nil")
+	}
+}
