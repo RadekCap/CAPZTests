@@ -45,7 +45,7 @@ type TestConfig struct {
 	// Cluster configuration
 	ManagementClusterName string
 	WorkloadClusterName   string
-	ResourceGroup         string
+	ClusterNamePrefix     string // Used as CS_CLUSTER_NAME for YAML generation; resource group becomes ${ClusterNamePrefix}-resgroup
 	OpenShiftVersion      string
 	Region                string
 	AzureSubscription     string
@@ -72,7 +72,7 @@ func NewTestConfig() *TestConfig {
 		// Cluster defaults
 		ManagementClusterName: GetEnvOrDefault("MANAGEMENT_CLUSTER_NAME", "capz-tests-stage"),
 		WorkloadClusterName:   GetEnvOrDefault("WORKLOAD_CLUSTER_NAME", "capz-tests-cluster"),
-		ResourceGroup:         GetEnvOrDefault("RESOURCE_GROUP", "capz-tests-rg"),
+		ClusterNamePrefix:     GetEnvOrDefault("CS_CLUSTER_NAME", fmt.Sprintf("%s-%s", GetEnvOrDefault("CAPZ_USER", "rcap"), GetEnvOrDefault("DEPLOYMENT_ENV", "stage"))),
 		OpenShiftVersion:      GetEnvOrDefault("OPENSHIFT_VERSION", "4.21"),
 		Region:                GetEnvOrDefault("REGION", "uksouth"),
 		AzureSubscription:     os.Getenv("AZURE_SUBSCRIPTION_NAME"),

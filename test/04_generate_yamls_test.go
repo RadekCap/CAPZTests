@@ -40,6 +40,7 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 	SetEnvVar(t, "USER", config.User)
 	SetEnvVar(t, "WORKLOAD_CLUSTER_NAME", config.WorkloadClusterName)
 	SetEnvVar(t, "REGION", config.Region)
+	SetEnvVar(t, "CS_CLUSTER_NAME", config.ClusterNamePrefix)
 
 	if config.AzureSubscription != "" {
 		SetEnvVar(t, "AZURE_SUBSCRIPTION_NAME", config.AzureSubscription)
