@@ -505,7 +505,12 @@ func EnsureAzureCredentialsSet(t *testing.T) error {
 //
 // This function:
 // 1. Gets AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID from environment (or extracts from Azure CLI)
-// 2. Patches the secret in the capz-system namespace
+// 2. Optionally includes AZURE_CLIENT_ID and AZURE_CLIENT_SECRET if both are set
+// 3. Patches the secret in the capz-system namespace
+//
+// Service principal credentials (AZURE_CLIENT_ID/AZURE_CLIENT_SECRET) are optional for local
+// development but required for ASO to work in Kind clusters since Kind cannot use managed
+// identity or workload identity.
 //
 // Returns an error if credentials cannot be obtained or patching fails.
 func PatchASOCredentialsSecret(t *testing.T, kubeContext string) error {
@@ -523,10 +528,29 @@ func PatchASOCredentialsSecret(t *testing.T, kubeContext string) error {
 		return fmt.Errorf("AZURE_TENANT_ID or AZURE_SUBSCRIPTION_ID is empty after extraction")
 	}
 
-	// Patch the secret with actual values
-	// The secret uses stringData, so we need to patch the data field with base64-encoded values
-	patchJSON := fmt.Sprintf(`{"stringData":{"AZURE_TENANT_ID":"%s","AZURE_SUBSCRIPTION_ID":"%s"}}`,
-		tenantID, subscriptionID)
+	// Build the patch JSON with required credentials
+	// Start with tenant ID and subscription ID (always required)
+	patchData := map[string]string{
+		"AZURE_TENANT_ID":       tenantID,
+		"AZURE_SUBSCRIPTION_ID": subscriptionID,
+	}
+
+	// Add service principal credentials if available
+	// These are optional for local development but required for ASO to work in Kind clusters
+	clientID := os.Getenv("AZURE_CLIENT_ID")
+	clientSecret := os.Getenv("AZURE_CLIENT_SECRET")
+	if clientID != "" && clientSecret != "" {
+		patchData["AZURE_CLIENT_ID"] = clientID
+		patchData["AZURE_CLIENT_SECRET"] = clientSecret
+		t.Log("Including service principal credentials in ASO secret patch")
+	}
+
+	// Build the JSON patch string
+	var pairs []string
+	for key, value := range patchData {
+		pairs = append(pairs, fmt.Sprintf(`"%s":"%s"`, key, value))
+	}
+	patchJSON := fmt.Sprintf(`{"stringData":{%s}}`, strings.Join(pairs, ","))
 
 	output, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext,
 		"-n", "capz-system", "patch", "secret", "aso-controller-settings",

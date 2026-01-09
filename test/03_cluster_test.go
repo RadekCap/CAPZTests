@@ -300,17 +300,33 @@ func TestKindCluster_CAPZControllerReady(t *testing.T) {
 // This test runs BEFORE waiting for ASO to become available, providing fast failure and clear error messages
 // if credentials are missing (instead of waiting 10 minutes for timeout).
 //
-// NOTE: Currently skipped because ASO in Kind clusters requires service principal credentials
-// (AZURE_CLIENT_ID + AZURE_CLIENT_SECRET) which are not always available in dev environments.
-// TODO: Re-enable when service principal setup is documented or made optional.
+// The test validates:
+// - AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID are always required
+// - AZURE_CLIENT_ID and AZURE_CLIENT_SECRET are required for ASO to function in Kind clusters
+//
+// Behavior:
+// - If service principal credentials are not set in the environment, the test skips gracefully
+// - In CI where credentials should be configured, missing credentials will cause test failure
 func TestKindCluster_ASOCredentialsConfigured(t *testing.T) {
-	t.Skip("Skipped: ASO credentials check requires service principal (AZURE_CLIENT_ID/SECRET) - not yet configured")
-
 	PrintTestHeader(t, "TestKindCluster_ASOCredentialsConfigured",
 		"Validate Azure credentials are configured in aso-controller-settings secret")
 
 	config := NewTestConfig()
 	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Check if service principal credentials are available in the environment
+	// If not, skip the test gracefully since ASO won't work without them anyway
+	clientID := os.Getenv("AZURE_CLIENT_ID")
+	clientSecret := os.Getenv("AZURE_CLIENT_SECRET")
+	if clientID == "" || clientSecret == "" {
+		PrintToTTY("⚠️  Service principal credentials not found in environment\n")
+		PrintToTTY("   AZURE_CLIENT_ID and AZURE_CLIENT_SECRET are required for ASO in Kind clusters\n")
+		PrintToTTY("   Skipping test - ASO will not be functional without service principal\n\n")
+		PrintToTTY("To configure service principal credentials:\n")
+		PrintToTTY("  az ad sp create-for-rbac --name \"aro-capz-tests\" --role contributor \\\n")
+		PrintToTTY("    --scopes /subscriptions/$(az account show --query id -o tsv)\n\n")
+		t.Skip("Skipped: Service principal credentials (AZURE_CLIENT_ID/SECRET) not set in environment")
+	}
 
 	PrintToTTY("\n=== Validating ASO credentials configuration ===\n")
 	PrintToTTY("Namespace: capz-system\n")
@@ -333,15 +349,11 @@ func TestKindCluster_ASOCredentialsConfigured(t *testing.T) {
 	requiredFields := []string{
 		"AZURE_TENANT_ID",
 		"AZURE_SUBSCRIPTION_ID",
-	}
-
-	// At least one of these auth methods must be configured
-	authFields := []string{
 		"AZURE_CLIENT_ID",
 		"AZURE_CLIENT_SECRET",
 	}
 
-	PrintToTTY("Checking required credential fields...\n")
+	PrintToTTY("Checking credential fields in secret...\n")
 	var missingFields []string
 
 	for _, field := range requiredFields {
@@ -357,37 +369,19 @@ func TestKindCluster_ASOCredentialsConfigured(t *testing.T) {
 		}
 	}
 
-	// Check authentication method
-	PrintToTTY("\nChecking authentication configuration...\n")
-	authConfigured := false
-	for _, field := range authFields {
-		output, err := RunCommandQuiet(t, "kubectl", "--context", context, "-n", "capz-system",
-			"get", "secret", "aso-controller-settings",
-			"-o", fmt.Sprintf("jsonpath={.data.%s}", field))
-
-		if err == nil && strings.TrimSpace(output) != "" {
-			authConfigured = true
-			PrintToTTY("  ✅ %s: configured\n", field)
-		} else {
-			PrintToTTY("  ⚪ %s: not set\n", field)
-		}
-	}
-
-	if !authConfigured {
-		missingFields = append(missingFields, "AZURE_CLIENT_ID or AZURE_CLIENT_SECRET")
-	}
-
 	// Report results
 	if len(missingFields) > 0 {
 		PrintToTTY("\n❌ ASO credentials validation FAILED\n")
 		PrintToTTY("Missing fields: %v\n\n", missingFields)
-		PrintToTTY("The deployment script did not populate Azure credentials.\n")
-		PrintToTTY("Please ensure:\n")
-		PrintToTTY("  1. Azure CLI is logged in: az login\n")
-		PrintToTTY("  2. Environment variables are set:\n")
-		PrintToTTY("     export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)\n")
-		PrintToTTY("     export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)\n")
-		PrintToTTY("  3. Re-run the deployment script\n\n")
+		PrintToTTY("The aso-controller-settings secret is missing required credentials.\n")
+		PrintToTTY("This can happen if:\n")
+		PrintToTTY("  1. The cluster was deployed without service principal credentials\n")
+		PrintToTTY("  2. PatchASOCredentialsSecret() was not called after deployment\n\n")
+		PrintToTTY("To fix, ensure these environment variables are set before deployment:\n")
+		PrintToTTY("  export AZURE_CLIENT_ID=<your-client-id>\n")
+		PrintToTTY("  export AZURE_CLIENT_SECRET=<your-client-secret>\n")
+		PrintToTTY("  export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)\n")
+		PrintToTTY("  export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)\n\n")
 		t.Fatalf("ASO credentials not configured: missing %v", missingFields)
 		return
 	}
