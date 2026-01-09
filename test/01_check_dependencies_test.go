@@ -393,6 +393,10 @@ func TestCheckDependencies_Kind_IsAvailable(t *testing.T) {
 // TestCheckDependencies_Clusterctl_IsAvailable checks if clusterctl is available.
 // clusterctl is used in later test phases for cluster monitoring and kubeconfig retrieval.
 // If not found in system PATH, it will be expected from cluster-api-installer's bin directory.
+//
+// On macOS, clusterctl MUST be installed separately because the cluster-api-installer
+// Makefile only downloads the linux-amd64 binary. This test fails on Mac when clusterctl
+// is missing to prevent confusing deployment failures later.
 func TestCheckDependencies_Clusterctl_IsAvailable(t *testing.T) {
 	if CommandExists("clusterctl") {
 		output, err := RunCommand(t, "clusterctl", "version")
@@ -404,16 +408,51 @@ func TestCheckDependencies_Clusterctl_IsAvailable(t *testing.T) {
 		return
 	}
 
-	// clusterctl not in PATH - warn user but don't fail
-	// It may be provided by cluster-api-installer's bin directory
+	// clusterctl not in PATH - behavior depends on platform
+	// On Mac: fail with prominent message (cluster-api-installer Makefile doesn't work on Mac)
+	// On Linux: warn only (cluster-api-installer's bin directory may provide it)
+
+	if runtime.GOOS == "darwin" {
+		// On macOS, print a prominent warning to TTY and fail the test
+		PrintToTTY("\n")
+		PrintToTTY("================================================================================\n")
+		PrintToTTY("  WARNING: clusterctl not found!\n")
+		PrintToTTY("================================================================================\n")
+		PrintToTTY("\n")
+		PrintToTTY("  On macOS, you MUST install clusterctl manually.\n")
+		PrintToTTY("  The cluster-api-installer Makefile only downloads linux-amd64 binaries.\n")
+		PrintToTTY("\n")
+		PrintToTTY("  Install clusterctl by running:\n")
+		PrintToTTY("\n")
+		PrintToTTY("    brew install clusterctl\n")
+		PrintToTTY("\n")
+		PrintToTTY("  Or manually download for your architecture:\n")
+		PrintToTTY("\n")
+		PrintToTTY("    # For Apple Silicon (M1/M2/M3):\n")
+		PrintToTTY("    curl -L https://github.com/kubernetes-sigs/cluster-api/releases/latest/download/clusterctl-darwin-arm64 -o /usr/local/bin/clusterctl\n")
+		PrintToTTY("    chmod +x /usr/local/bin/clusterctl\n")
+		PrintToTTY("\n")
+		PrintToTTY("    # For Intel Mac:\n")
+		PrintToTTY("    curl -L https://github.com/kubernetes-sigs/cluster-api/releases/latest/download/clusterctl-darwin-amd64 -o /usr/local/bin/clusterctl\n")
+		PrintToTTY("    chmod +x /usr/local/bin/clusterctl\n")
+		PrintToTTY("\n")
+		PrintToTTY("  clusterctl is required for:\n")
+		PrintToTTY("    - Cluster monitoring (TestDeployment_MonitorCluster)\n")
+		PrintToTTY("    - Kubeconfig retrieval (TestVerification_GetKubeconfig)\n")
+		PrintToTTY("\n")
+		PrintToTTY("================================================================================\n")
+		PrintToTTY("\n")
+
+		t.Fatalf("clusterctl is required on macOS but was not found.\n\n" +
+			"Install with: brew install clusterctl\n\n" +
+			"See the warning above for detailed instructions.")
+		return
+	}
+
+	// On Linux/other platforms, warn but don't fail
+	// cluster-api-installer's Makefile will download clusterctl to its bin directory
 	var installInstructions string
 	switch runtime.GOOS {
-	case "darwin":
-		installInstructions = "To install clusterctl on macOS:\n" +
-			"  brew install clusterctl\n\n" +
-			"Or manually:\n" +
-			"  curl -L https://github.com/kubernetes-sigs/cluster-api/releases/latest/download/clusterctl-darwin-arm64 -o /usr/local/bin/clusterctl\n" +
-			"  chmod +x /usr/local/bin/clusterctl"
 	case "linux":
 		installInstructions = "To install clusterctl on Linux:\n" +
 			"  curl -L https://github.com/kubernetes-sigs/cluster-api/releases/latest/download/clusterctl-linux-amd64 -o /usr/local/bin/clusterctl\n" +
