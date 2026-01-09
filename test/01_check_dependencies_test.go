@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -89,6 +90,108 @@ func TestCheckDependencies_DockerDaemonRunning(t *testing.T) {
 	} else {
 		t.Logf("Docker daemon is running, server version: %s", serverVersion)
 	}
+}
+
+// TestCheckDependencies_PythonVersion validates Python version is supported.
+// Python 3.12 is required for the cluster-api-installer scripts.
+// Newer versions (3.13+) are not supported and will cause deployment failures.
+// This is a fail-fast check - if Python version is unsupported, subsequent tests
+// that depend on Python scripts will fail.
+func TestCheckDependencies_PythonVersion(t *testing.T) {
+	// Determine which Python command to use
+	var pythonCmd string
+	if CommandExists("python3") {
+		pythonCmd = "python3"
+	} else if CommandExists("python") {
+		pythonCmd = "python"
+	} else {
+		t.Fatalf("Python is not installed or not in PATH.\n\n" +
+			"Python 3.12 is required for the cluster-api-installer scripts.\n" +
+			"Please install Python 3.12 and ensure it's in your PATH.\n\n" +
+			"Installation options:\n" +
+			"  - Using pyenv: pyenv install 3.12 && pyenv global 3.12\n" +
+			"  - Using dnf (Fedora): sudo dnf install python3.12\n" +
+			"  - Using apt (Ubuntu/Debian): sudo apt install python3.12")
+		return
+	}
+
+	// Get Python version
+	output, err := RunCommand(t, pythonCmd, "--version")
+	if err != nil {
+		t.Fatalf("Failed to get Python version: %v", err)
+		return
+	}
+
+	// Parse version string (e.g., "Python 3.12.4" or "Python 3.13.0")
+	versionStr := strings.TrimSpace(output)
+	t.Logf("Detected: %s", versionStr)
+
+	// Extract version numbers
+	// Format: "Python X.Y.Z" or "Python X.Y"
+	parts := strings.Fields(versionStr)
+	if len(parts) < 2 {
+		t.Fatalf("Could not parse Python version from: %s", versionStr)
+		return
+	}
+
+	versionParts := strings.Split(parts[1], ".")
+	if len(versionParts) < 2 {
+		t.Fatalf("Could not parse Python version numbers from: %s", parts[1])
+		return
+	}
+
+	// Parse major and minor version
+	var major, minor int
+	_, err = Sscanf(versionParts[0], "%d", &major)
+	if err != nil {
+		t.Fatalf("Could not parse Python major version from: %s", versionParts[0])
+		return
+	}
+	_, err = Sscanf(versionParts[1], "%d", &minor)
+	if err != nil {
+		t.Fatalf("Could not parse Python minor version from: %s", versionParts[1])
+		return
+	}
+
+	// Validate version: must be Python 3.12.x
+	// Python 2.x is not supported
+	if major < 3 {
+		t.Fatalf("Python 2.x is not supported.\n\n"+
+			"Detected: %s\n"+
+			"Required: Python 3.12.x\n\n"+
+			"Please install Python 3.12 and ensure it's in your PATH.",
+			versionStr)
+		return
+	}
+
+	// Python 3.13+ is not supported
+	if major == 3 && minor > 12 {
+		t.Fatalf("Python %d.%d is not supported.\n\n"+
+			"Detected: %s\n"+
+			"Required: Python 3.12.x\n\n"+
+			"Python 3.13+ causes failures with cluster-api-installer scripts.\n\n"+
+			"To switch to Python 3.12:\n"+
+			"  - Using pyenv: pyenv install 3.12 && pyenv global 3.12\n"+
+			"  - Using alternatives (Fedora): sudo alternatives --set python3 /usr/bin/python3.12\n"+
+			"  - Using update-alternatives (Debian/Ubuntu): sudo update-alternatives --set python3 /usr/bin/python3.12",
+			major, minor, versionStr)
+		return
+	}
+
+	// Python < 3.12 - warn but don't fail (may work)
+	if major == 3 && minor < 12 {
+		t.Logf("Warning: Python 3.%d detected. Python 3.12.x is recommended.\n"+
+			"Some features may not work correctly with older versions.", minor)
+		return
+	}
+
+	// Python 3.12.x - perfect
+	t.Logf("Python version %d.%d is supported", major, minor)
+}
+
+// Sscanf is a simple helper to parse a single integer from a string
+func Sscanf(s string, format string, a ...interface{}) (int, error) {
+	return fmt.Sscanf(s, format, a...)
 }
 
 // TestCheckDependencies_AzureCLILogin_IsLoggedIn checks if Azure CLI is logged in
