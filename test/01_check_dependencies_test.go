@@ -194,27 +194,54 @@ func Sscanf(s string, format string, a ...interface{}) (int, error) {
 	return fmt.Sscanf(s, format, a...)
 }
 
-// TestCheckDependencies_AzureCLILogin_IsLoggedIn checks if Azure CLI is logged in
-func TestCheckDependencies_AzureCLILogin_IsLoggedIn(t *testing.T) {
-	// Skip in CI environments where Azure login is not available
+// TestCheckDependencies_AzureAuthentication validates Azure authentication is available.
+// Supports two authentication methods:
+// 1. Service principal credentials (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID) - preferred for CI/automation
+// 2. Azure CLI login (az login) - convenient for interactive development
+//
+// Service principal authentication is checked first. If service principal credentials are set,
+// they are validated by performing an actual login. If not set, the test falls back to checking
+// Azure CLI login status.
+func TestCheckDependencies_AzureAuthentication(t *testing.T) {
+	// Skip in CI environments where Azure login may not be available
 	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
-		t.Skip("Skipping Azure CLI login check in CI environment")
+		t.Skip("Skipping Azure authentication check in CI environment")
 		return
 	}
 
-	_, err := RunCommand(t, "az", "account", "show")
-	if err != nil {
-		t.Errorf("Azure CLI not logged in. Please run 'az login': %v", err)
+	// Detect authentication mode
+	authMode := DetectAzureAuthMode(t)
+
+	switch authMode {
+	case AzureAuthModeServicePrincipal:
+		// Validate service principal credentials by performing login
+		if err := ValidateServicePrincipalCredentials(t); err != nil {
+			t.Errorf("Service principal authentication failed: %v", err)
+			return
+		}
+		t.Log("Azure authentication via service principal is valid")
+
+	case AzureAuthModeCLI:
+		t.Log("Azure authentication via CLI is valid")
+
+	case AzureAuthModeNone:
+		t.Errorf("No Azure authentication available.\n\n" +
+			"Please authenticate using one of these methods:\n\n" +
+			"Option 1: Service principal (recommended for CI/automation)\n" +
+			"  export AZURE_CLIENT_ID=<client-id>\n" +
+			"  export AZURE_CLIENT_SECRET=<client-secret>\n" +
+			"  export AZURE_TENANT_ID=<tenant-id>\n\n" +
+			"Option 2: Azure CLI (convenient for development)\n" +
+			"  az login\n\n" +
+			"To create a service principal:\n" +
+			"  az ad sp create-for-rbac --name <name> --role Contributor --scopes /subscriptions/<subscription-id>")
 		return
 	}
-
-	// Successfully logged in - Don't log output as it contains sensitive information (tenant ID, subscription ID)
-	t.Log("Azure CLI is logged in")
 }
 
 // TestCheckDependencies_AzureEnvironment validates required Azure environment variables.
-// If environment variables are not set, it attempts to auto-extract them from Azure CLI
-// (since TestCheckDependencies_AzureCLILogin_IsLoggedIn already verified login).
+// When using service principal authentication, AZURE_TENANT_ID is already required and set.
+// When using Azure CLI, environment variables are auto-extracted if not set.
 // This provides seamless UX for users who are logged in with Azure CLI.
 func TestCheckDependencies_AzureEnvironment(t *testing.T) {
 	// Skip in CI environments where Azure env vars may not be set
@@ -226,20 +253,28 @@ func TestCheckDependencies_AzureEnvironment(t *testing.T) {
 	// Track if any required variables are missing after auto-extraction attempt
 	var missingVars []string
 
-	// Check AZURE_TENANT_ID - try to auto-extract if not set
+	// Check if using service principal authentication
+	usingServicePrincipal := HasServicePrincipalCredentials()
+
+	// Check AZURE_TENANT_ID - already set if using service principal, otherwise try to auto-extract
 	t.Run("AZURE_TENANT_ID", func(t *testing.T) {
 		if os.Getenv("AZURE_TENANT_ID") != "" {
-			t.Log("AZURE_TENANT_ID is set via environment variable")
+			if usingServicePrincipal {
+				t.Log("AZURE_TENANT_ID is set via service principal credentials")
+			} else {
+				t.Log("AZURE_TENANT_ID is set via environment variable")
+			}
 			return
 		}
 
-		// Try to extract from Azure CLI
+		// Try to extract from Azure CLI (only possible if not using SP auth)
 		output, err := RunCommandQuiet(t, "az", "account", "show", "--query", "tenantId", "-o", "tsv")
 		if err != nil {
 			missingVars = append(missingVars, "AZURE_TENANT_ID")
 			t.Errorf("AZURE_TENANT_ID is not set and could not be extracted from Azure CLI.\n\n"+
-				"To fix this, run:\n"+
-				"  export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)\n\n"+
+				"To fix this, either:\n"+
+				"  Option 1 (Service Principal): export AZURE_TENANT_ID=<tenant-id>\n"+
+				"  Option 2 (Azure CLI): export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)\n\n"+
 				"Error: %v", err)
 			return
 		}
@@ -248,8 +283,9 @@ func TestCheckDependencies_AzureEnvironment(t *testing.T) {
 		if tenantID == "" {
 			missingVars = append(missingVars, "AZURE_TENANT_ID")
 			t.Errorf("AZURE_TENANT_ID is not set and Azure CLI returned empty tenant ID.\n\n" +
-				"To fix this, run:\n" +
-				"  export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)")
+				"To fix this, either:\n" +
+				"  Option 1 (Service Principal): export AZURE_TENANT_ID=<tenant-id>\n" +
+				"  Option 2 (Azure CLI): export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)")
 			return
 		}
 
@@ -278,7 +314,8 @@ func TestCheckDependencies_AzureEnvironment(t *testing.T) {
 			missingVars = append(missingVars, "AZURE_SUBSCRIPTION_ID or AZURE_SUBSCRIPTION_NAME")
 			t.Errorf("Neither AZURE_SUBSCRIPTION_ID nor AZURE_SUBSCRIPTION_NAME is set, "+
 				"and could not be extracted from Azure CLI.\n\n"+
-				"To fix this, run one of:\n"+
+				"To fix this, set one of:\n"+
+				"  export AZURE_SUBSCRIPTION_ID=<subscription-id>\n"+
 				"  export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)\n"+
 				"  export AZURE_SUBSCRIPTION_NAME=$(az account show --query name -o tsv)\n\n"+
 				"Error: %v", err)
@@ -290,7 +327,8 @@ func TestCheckDependencies_AzureEnvironment(t *testing.T) {
 			missingVars = append(missingVars, "AZURE_SUBSCRIPTION_ID or AZURE_SUBSCRIPTION_NAME")
 			t.Errorf("Neither AZURE_SUBSCRIPTION_ID nor AZURE_SUBSCRIPTION_NAME is set, " +
 				"and Azure CLI returned empty subscription ID.\n\n" +
-				"To fix this, run one of:\n" +
+				"To fix this, set one of:\n" +
+				"  export AZURE_SUBSCRIPTION_ID=<subscription-id>\n" +
 				"  export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)\n" +
 				"  export AZURE_SUBSCRIPTION_NAME=$(az account show --query name -o tsv)")
 			return

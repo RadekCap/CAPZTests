@@ -178,18 +178,46 @@ See `docs/INTEGRATION.md` for detailed integration patterns.
 
 ### Azure Authentication (Required)
 
-These environment variables are validated in the Check Dependencies phase. If missing, tests will fail with clear remediation instructions.
+The test suite supports two authentication methods. Choose the one that best fits your workflow:
 
+#### Option 1: Service Principal (Recommended for CI/Automation)
+
+Set these environment variables to authenticate using an existing service principal:
+
+- `AZURE_CLIENT_ID` - Service principal application (client) ID (**required for SP auth**)
+- `AZURE_CLIENT_SECRET` - Service principal secret (**required for SP auth**)
 - `AZURE_TENANT_ID` - Azure tenant ID (**required**)
-  ```bash
-  export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
-  ```
-- `AZURE_SUBSCRIPTION_ID` or `AZURE_SUBSCRIPTION_NAME` - Azure subscription identifier (**one required**)
-  ```bash
-  export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-  # OR
-  export AZURE_SUBSCRIPTION_NAME=$(az account show --query name -o tsv)
-  ```
+- `AZURE_SUBSCRIPTION_ID` - Azure subscription ID (**required**)
+
+```bash
+export AZURE_CLIENT_ID=<your-client-id>
+export AZURE_CLIENT_SECRET=<your-client-secret>
+export AZURE_TENANT_ID=<your-tenant-id>
+export AZURE_SUBSCRIPTION_ID=<your-subscription-id>
+```
+
+To create a new service principal:
+```bash
+az ad sp create-for-rbac --name <name> --role Contributor --scopes /subscriptions/<subscription-id>
+```
+
+#### Option 2: Azure CLI (Convenient for Development)
+
+Simply login with Azure CLI and the test suite will auto-extract required credentials:
+
+```bash
+az login
+```
+
+The following environment variables can be auto-extracted from Azure CLI if not set:
+- `AZURE_TENANT_ID` - Azure tenant ID (auto-extracted via `az account show`)
+- `AZURE_SUBSCRIPTION_ID` or `AZURE_SUBSCRIPTION_NAME` - Azure subscription identifier (auto-extracted)
+
+Manual export if needed:
+```bash
+export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
+export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+```
 
 ### Repository Configuration
 - `ARO_REPO_URL` - cluster-api-installer URL (default: RadekCap/cluster-api-installer)

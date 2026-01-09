@@ -52,7 +52,9 @@ Target usage of this test suite will be:
 
 - Azure account with appropriate permissions
 - Access to Azure subscription for ARO deployment
-- Authenticated via `az login`
+- Authenticated via one of:
+  - **Service principal** (recommended for CI): Set `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID`
+  - **Azure CLI** (for development): Run `az login`
 
 ## Configuration
 
@@ -122,9 +124,16 @@ The test suite validates naming compliance during the Check Dependencies phase (
    make check-prereq
    ```
 
-2. **Authenticate with Azure**:
+2. **Authenticate with Azure** (choose one):
    ```bash
+   # Option A: Azure CLI (convenient for development)
    az login
+
+   # Option B: Service Principal (recommended for CI/automation)
+   export AZURE_CLIENT_ID=<your-client-id>
+   export AZURE_CLIENT_SECRET=<your-client-secret>
+   export AZURE_TENANT_ID=<your-tenant-id>
+   export AZURE_SUBSCRIPTION_ID=<your-subscription-id>
    ```
 
 3. **Run check dependencies tests**:

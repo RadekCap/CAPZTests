@@ -1680,3 +1680,109 @@ func GetResultsDir() string {
 
 	return newDir
 }
+
+// AzureAuthMode represents the method of Azure authentication being used.
+type AzureAuthMode string
+
+const (
+	// AzureAuthModeServicePrincipal indicates authentication via service principal credentials
+	// (AZURE_CLIENT_ID + AZURE_CLIENT_SECRET + AZURE_TENANT_ID).
+	AzureAuthModeServicePrincipal AzureAuthMode = "service-principal"
+
+	// AzureAuthModeCLI indicates authentication via Azure CLI (az login).
+	AzureAuthModeCLI AzureAuthMode = "cli"
+
+	// AzureAuthModeNone indicates no valid authentication is available.
+	AzureAuthModeNone AzureAuthMode = "none"
+)
+
+// DetectAzureAuthMode determines which authentication method is available.
+// It checks for service principal credentials first (preferred for CI/automation),
+// then falls back to Azure CLI authentication.
+//
+// Service principal authentication requires:
+// - AZURE_CLIENT_ID
+// - AZURE_CLIENT_SECRET
+// - AZURE_TENANT_ID
+//
+// CLI authentication requires:
+// - Successful "az account show" command
+func DetectAzureAuthMode(t *testing.T) AzureAuthMode {
+	t.Helper()
+
+	// Check for service principal credentials first
+	clientID := os.Getenv("AZURE_CLIENT_ID")
+	clientSecret := os.Getenv("AZURE_CLIENT_SECRET")
+	tenantID := os.Getenv("AZURE_TENANT_ID")
+
+	if clientID != "" && clientSecret != "" && tenantID != "" {
+		t.Log("Service principal credentials detected (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)")
+		return AzureAuthModeServicePrincipal
+	}
+
+	// Check if Azure CLI is logged in
+	_, err := RunCommandQuiet(t, "az", "account", "show")
+	if err == nil {
+		t.Log("Azure CLI authentication detected")
+		return AzureAuthModeCLI
+	}
+
+	return AzureAuthModeNone
+}
+
+// HasServicePrincipalCredentials returns true if service principal environment variables are set.
+// This is a quick check without validating the credentials.
+func HasServicePrincipalCredentials() bool {
+	return os.Getenv("AZURE_CLIENT_ID") != "" &&
+		os.Getenv("AZURE_CLIENT_SECRET") != "" &&
+		os.Getenv("AZURE_TENANT_ID") != ""
+}
+
+// ValidateServicePrincipalCredentials validates that service principal credentials can authenticate.
+// This performs an actual Azure CLI login with the service principal to verify credentials work.
+// Returns an error if authentication fails.
+func ValidateServicePrincipalCredentials(t *testing.T) error {
+	t.Helper()
+
+	clientID := os.Getenv("AZURE_CLIENT_ID")
+	clientSecret := os.Getenv("AZURE_CLIENT_SECRET")
+	tenantID := os.Getenv("AZURE_TENANT_ID")
+
+	if clientID == "" || clientSecret == "" || tenantID == "" {
+		return fmt.Errorf("missing service principal credentials: AZURE_CLIENT_ID=%t, AZURE_CLIENT_SECRET=%t, AZURE_TENANT_ID=%t",
+			clientID != "", clientSecret != "", tenantID != "")
+	}
+
+	// Test login with service principal (using --allow-no-subscriptions in case SP has no subscription access)
+	t.Log("Validating service principal credentials...")
+	_, err := RunCommandQuiet(t, "az", "login",
+		"--service-principal",
+		"-u", clientID,
+		"-p", clientSecret,
+		"--tenant", tenantID,
+		"--allow-no-subscriptions")
+	if err != nil {
+		return fmt.Errorf("service principal authentication failed: %w\n\n"+
+			"Please verify your service principal credentials:\n"+
+			"  - AZURE_CLIENT_ID is correct\n"+
+			"  - AZURE_CLIENT_SECRET is valid and not expired\n"+
+			"  - AZURE_TENANT_ID is correct\n\n"+
+			"To regenerate the secret:\n"+
+			"  az ad sp credential reset --id <client-id>", err)
+	}
+
+	t.Log("Service principal credentials validated successfully")
+	return nil
+}
+
+// GetAzureAuthDescription returns a human-readable description of the current auth mode.
+func GetAzureAuthDescription(mode AzureAuthMode) string {
+	switch mode {
+	case AzureAuthModeServicePrincipal:
+		return "service principal (AZURE_CLIENT_ID/AZURE_CLIENT_SECRET)"
+	case AzureAuthModeCLI:
+		return "Azure CLI (az login)"
+	default:
+		return "no authentication"
+	}
+}

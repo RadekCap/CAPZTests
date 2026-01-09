@@ -1927,3 +1927,136 @@ func TestFormatAzureError(t *testing.T) {
 		})
 	}
 }
+
+// TestHasServicePrincipalCredentials tests the HasServicePrincipalCredentials function.
+func TestHasServicePrincipalCredentials(t *testing.T) {
+	tests := []struct {
+		name         string
+		clientID     string
+		clientSecret string
+		tenantID     string
+		expected     bool
+	}{
+		{
+			name:         "all credentials set",
+			clientID:     "test-client-id",
+			clientSecret: "test-secret",
+			tenantID:     "test-tenant-id",
+			expected:     true,
+		},
+		{
+			name:         "missing client id",
+			clientID:     "",
+			clientSecret: "test-secret",
+			tenantID:     "test-tenant-id",
+			expected:     false,
+		},
+		{
+			name:         "missing client secret",
+			clientID:     "test-client-id",
+			clientSecret: "",
+			tenantID:     "test-tenant-id",
+			expected:     false,
+		},
+		{
+			name:         "missing tenant id",
+			clientID:     "test-client-id",
+			clientSecret: "test-secret",
+			tenantID:     "",
+			expected:     false,
+		},
+		{
+			name:         "all empty",
+			clientID:     "",
+			clientSecret: "",
+			tenantID:     "",
+			expected:     false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Save original values
+			origClientID := os.Getenv("AZURE_CLIENT_ID")
+			origClientSecret := os.Getenv("AZURE_CLIENT_SECRET")
+			origTenantID := os.Getenv("AZURE_TENANT_ID")
+
+			// Restore original values after test
+			t.Cleanup(func() {
+				os.Setenv("AZURE_CLIENT_ID", origClientID)
+				os.Setenv("AZURE_CLIENT_SECRET", origClientSecret)
+				os.Setenv("AZURE_TENANT_ID", origTenantID)
+			})
+
+			// Set test values
+			if tc.clientID != "" {
+				os.Setenv("AZURE_CLIENT_ID", tc.clientID)
+			} else {
+				os.Unsetenv("AZURE_CLIENT_ID")
+			}
+			if tc.clientSecret != "" {
+				os.Setenv("AZURE_CLIENT_SECRET", tc.clientSecret)
+			} else {
+				os.Unsetenv("AZURE_CLIENT_SECRET")
+			}
+			if tc.tenantID != "" {
+				os.Setenv("AZURE_TENANT_ID", tc.tenantID)
+			} else {
+				os.Unsetenv("AZURE_TENANT_ID")
+			}
+
+			result := HasServicePrincipalCredentials()
+			if result != tc.expected {
+				t.Errorf("HasServicePrincipalCredentials() = %v, expected %v", result, tc.expected)
+			}
+		})
+	}
+}
+
+// TestGetAzureAuthDescription tests the GetAzureAuthDescription function.
+func TestGetAzureAuthDescription(t *testing.T) {
+	tests := []struct {
+		mode     AzureAuthMode
+		expected string
+	}{
+		{
+			mode:     AzureAuthModeServicePrincipal,
+			expected: "service principal (AZURE_CLIENT_ID/AZURE_CLIENT_SECRET)",
+		},
+		{
+			mode:     AzureAuthModeCLI,
+			expected: "Azure CLI (az login)",
+		},
+		{
+			mode:     AzureAuthModeNone,
+			expected: "no authentication",
+		},
+		{
+			mode:     AzureAuthMode("unknown"),
+			expected: "no authentication",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(string(tc.mode), func(t *testing.T) {
+			result := GetAzureAuthDescription(tc.mode)
+			if result != tc.expected {
+				t.Errorf("GetAzureAuthDescription(%q) = %q, expected %q", tc.mode, result, tc.expected)
+			}
+		})
+	}
+}
+
+// TestAzureAuthModeConstants validates the authentication mode constants are correctly defined.
+func TestAzureAuthModeConstants(t *testing.T) {
+	// Verify constant values are as expected
+	if AzureAuthModeServicePrincipal != "service-principal" {
+		t.Errorf("AzureAuthModeServicePrincipal = %q, expected 'service-principal'", AzureAuthModeServicePrincipal)
+	}
+	if AzureAuthModeCLI != "cli" {
+		t.Errorf("AzureAuthModeCLI = %q, expected 'cli'", AzureAuthModeCLI)
+	}
+	if AzureAuthModeNone != "none" {
+		t.Errorf("AzureAuthModeNone = %q, expected 'none'", AzureAuthModeNone)
+	}
+}
