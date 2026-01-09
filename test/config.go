@@ -10,6 +10,15 @@ import (
 const (
 	// DefaultDeploymentTimeout is the default timeout for control plane deployment
 	DefaultDeploymentTimeout = 45 * time.Minute
+
+	// DefaultCAPZUser is the default user identifier for CAPZ resources.
+	// Used in ClusterNamePrefix (for resource group naming) and User field.
+	// Extracted to a constant to ensure consistency across all usages.
+	DefaultCAPZUser = "rcap"
+
+	// DefaultDeploymentEnv is the default deployment environment identifier.
+	// Used in ClusterNamePrefix and Environment field.
+	DefaultDeploymentEnv = "stage"
 )
 
 var (
@@ -72,12 +81,12 @@ func NewTestConfig() *TestConfig {
 		// Cluster defaults
 		ManagementClusterName: GetEnvOrDefault("MANAGEMENT_CLUSTER_NAME", "capz-tests-stage"),
 		WorkloadClusterName:   GetEnvOrDefault("WORKLOAD_CLUSTER_NAME", "capz-tests-cluster"),
-		ClusterNamePrefix:     GetEnvOrDefault("CS_CLUSTER_NAME", fmt.Sprintf("%s-%s", GetEnvOrDefault("CAPZ_USER", "rcap"), GetEnvOrDefault("DEPLOYMENT_ENV", "stage"))),
+		ClusterNamePrefix:     GetEnvOrDefault("CS_CLUSTER_NAME", fmt.Sprintf("%s-%s", GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser), GetEnvOrDefault("DEPLOYMENT_ENV", DefaultDeploymentEnv))),
 		OpenShiftVersion:      GetEnvOrDefault("OPENSHIFT_VERSION", "4.21"),
 		Region:                GetEnvOrDefault("REGION", "uksouth"),
 		AzureSubscription:     os.Getenv("AZURE_SUBSCRIPTION_NAME"),
-		Environment:           GetEnvOrDefault("DEPLOYMENT_ENV", "stage"),
-		User:                  GetEnvOrDefault("CAPZ_USER", "rcap"),
+		Environment:           GetEnvOrDefault("DEPLOYMENT_ENV", DefaultDeploymentEnv),
+		User:                  GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser),
 
 		// Paths
 		ClusterctlBinPath: GetEnvOrDefault("CLUSTERCTL_BIN", "./bin/clusterctl"),
