@@ -94,7 +94,7 @@ func NewTestConfig() *TestConfig {
 		AzureSubscription:     os.Getenv("AZURE_SUBSCRIPTION_NAME"),
 		Environment:           GetEnvOrDefault("DEPLOYMENT_ENV", DefaultDeploymentEnv),
 		User:                  GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser),
-		TestNamespace:         GetEnvOrDefault("TEST_NAMESPACE", "capztest"),
+		TestNamespace:         GetEnvOrDefault("TEST_NAMESPACE", "default"),
 
 		// Paths
 		ClusterctlBinPath: GetEnvOrDefault("CLUSTERCTL_BIN", "./bin/clusterctl"),
