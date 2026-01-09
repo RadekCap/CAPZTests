@@ -79,6 +79,13 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 		if err != nil {
 			// On error, show output for debugging (may contain sensitive info, but needed for troubleshooting)
 			PrintToTTY("\n❌ Failed to deploy Kind cluster: %v\n", err)
+
+			// Check for known Azure errors and provide remediation guidance
+			if azureErr := DetectAzureError(output); azureErr != nil {
+				PrintToTTY("%s", FormatAzureError(azureErr))
+				t.Logf("Azure error detected: %s", azureErr.ErrorType)
+			}
+
 			t.Errorf("Failed to deploy Kind cluster: %v\nOutput: %s", err, output)
 			return
 		}

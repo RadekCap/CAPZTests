@@ -856,6 +856,169 @@ func isRetryableKubectlError(output string, err error) bool {
 	return false
 }
 
+// AzureErrorInfo contains information about a detected Azure error and remediation steps.
+type AzureErrorInfo struct {
+	ErrorType   string   // Short error type identifier (e.g., "insufficient_privileges")
+	Message     string   // Human-readable error description
+	Remediation []string // Steps to fix the error
+}
+
+// DetectAzureError analyzes command output for known Azure error patterns
+// and returns detailed error information with remediation steps.
+// Returns nil if no known Azure error pattern is detected.
+//
+// This function helps provide actionable guidance when Azure operations fail,
+// particularly during service principal creation, RBAC operations, and resource provisioning.
+func DetectAzureError(output string) *AzureErrorInfo {
+	lowerOutput := strings.ToLower(output)
+
+	// Insufficient privileges error (service principal creation, role assignments)
+	if strings.Contains(lowerOutput, "insufficient privileges") {
+		return &AzureErrorInfo{
+			ErrorType: "insufficient_privileges",
+			Message:   "Azure operation failed due to insufficient privileges",
+			Remediation: []string{
+				"Verify you have the required Azure AD role to create service principals:",
+				"  - Application Administrator, or",
+				"  - Cloud Application Administrator, or",
+				"  - Global Administrator (not recommended for production)",
+				"Run: az ad signed-in-user show --query displayName -o tsv",
+				"Check your role assignments: az role assignment list --assignee $(az ad signed-in-user show --query id -o tsv) --all",
+				"Contact your Azure AD administrator if you need elevated permissions",
+			},
+		}
+	}
+
+	// Authorization failed error
+	if strings.Contains(lowerOutput, "authorizationfailed") ||
+		strings.Contains(lowerOutput, "authorization failed") ||
+		strings.Contains(lowerOutput, "does not have authorization") {
+		return &AzureErrorInfo{
+			ErrorType: "authorization_failed",
+			Message:   "Azure authorization failed for the requested operation",
+			Remediation: []string{
+				"Verify you have the required RBAC role on the subscription/resource group:",
+				"  - Contributor, or",
+				"  - Owner (for role assignments)",
+				"Check your subscription access: az account show",
+				"List your role assignments: az role assignment list --assignee $(az ad signed-in-user show --query id -o tsv) --all",
+				"Ensure you're using the correct subscription: az account set --subscription <subscription-id>",
+			},
+		}
+	}
+
+	// Subscription not found or access denied
+	if strings.Contains(lowerOutput, "subscriptionnotfound") ||
+		strings.Contains(lowerOutput, "subscription not found") ||
+		strings.Contains(lowerOutput, "subscription was not found") {
+		return &AzureErrorInfo{
+			ErrorType: "subscription_not_found",
+			Message:   "The specified Azure subscription was not found or you don't have access",
+			Remediation: []string{
+				"Verify the subscription ID is correct: az account list -o table",
+				"Ensure you have access to the subscription",
+				"Try switching subscription: az account set --subscription <subscription-id>",
+				"Re-login if needed: az login",
+			},
+		}
+	}
+
+	// Resource group not found
+	if strings.Contains(lowerOutput, "resourcegroupnotfound") ||
+		strings.Contains(lowerOutput, "resource group") && strings.Contains(lowerOutput, "not found") {
+		return &AzureErrorInfo{
+			ErrorType: "resource_group_not_found",
+			Message:   "The specified resource group was not found",
+			Remediation: []string{
+				"Verify the resource group exists: az group list -o table",
+				"Create the resource group if needed: az group create --name <name> --location <location>",
+				"Check if CS_CLUSTER_NAME environment variable is set correctly",
+			},
+		}
+	}
+
+	// Quota exceeded
+	if strings.Contains(lowerOutput, "quotaexceeded") ||
+		strings.Contains(lowerOutput, "quota exceeded") ||
+		strings.Contains(lowerOutput, "exceeds quota") {
+		return &AzureErrorInfo{
+			ErrorType: "quota_exceeded",
+			Message:   "Azure resource quota exceeded",
+			Remediation: []string{
+				"Check your current quota usage: az vm list-usage --location <region> -o table",
+				"Request a quota increase through Azure Portal:",
+				"  1. Navigate to Subscriptions > Your Subscription > Usage + quotas",
+				"  2. Find the resource type and click 'Request Increase'",
+				"Consider using a different Azure region with available capacity",
+			},
+		}
+	}
+
+	// Service principal already exists
+	if strings.Contains(lowerOutput, "already exists") && strings.Contains(lowerOutput, "service principal") {
+		return &AzureErrorInfo{
+			ErrorType: "sp_already_exists",
+			Message:   "A service principal with this name already exists",
+			Remediation: []string{
+				"List existing service principals: az ad sp list --display-name <name> -o table",
+				"Delete the existing service principal if not needed: az ad sp delete --id <sp-id>",
+				"Or use a different name for the new service principal",
+			},
+		}
+	}
+
+	// Invalid client secret or credentials expired
+	if strings.Contains(lowerOutput, "invalid_client") ||
+		strings.Contains(lowerOutput, "invalid client secret") ||
+		strings.Contains(lowerOutput, "credentials have expired") {
+		return &AzureErrorInfo{
+			ErrorType: "invalid_credentials",
+			Message:   "Azure credentials are invalid or have expired",
+			Remediation: []string{
+				"Re-authenticate with Azure CLI: az login",
+				"If using service principal, regenerate the secret:",
+				"  az ad sp credential reset --id <sp-id>",
+				"Update AZURE_CLIENT_SECRET environment variable if applicable",
+			},
+		}
+	}
+
+	// Azure CLI not logged in
+	if strings.Contains(lowerOutput, "please run 'az login'") ||
+		strings.Contains(lowerOutput, "not logged in") ||
+		strings.Contains(lowerOutput, "no subscription found") {
+		return &AzureErrorInfo{
+			ErrorType: "not_logged_in",
+			Message:   "Azure CLI is not logged in or session has expired",
+			Remediation: []string{
+				"Login to Azure CLI: az login",
+				"For service principal login: az login --service-principal -u <client-id> -p <secret> --tenant <tenant-id>",
+				"Verify login status: az account show",
+			},
+		}
+	}
+
+	return nil
+}
+
+// FormatAzureError formats an AzureErrorInfo for display.
+// Returns a formatted string with the error message and remediation steps.
+func FormatAzureError(info *AzureErrorInfo) string {
+	if info == nil {
+		return ""
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("\n=== Azure Error Detected: %s ===\n", info.Message))
+	result.WriteString("\nRemediation steps:\n")
+	for _, step := range info.Remediation {
+		result.WriteString(fmt.Sprintf("  %s\n", step))
+	}
+	result.WriteString("\n")
+
+	return result.String()
+}
+
 // GetClusterPhase retrieves the current phase of a CAPI Cluster resource.
 // Returns the phase string (e.g., "Provisioning", "Provisioned", "Failed") or an error.
 // This is useful for checking if a cluster is ready before attempting operations that

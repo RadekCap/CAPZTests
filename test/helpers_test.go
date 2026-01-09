@@ -1632,3 +1632,298 @@ func TestGetResultsDir(t *testing.T) {
 		t.Errorf("GetResultsDir returned unexpected path format: %s", dir)
 	}
 }
+
+func TestDetectAzureError(t *testing.T) {
+	tests := []struct {
+		name           string
+		output         string
+		expectedType   string
+		expectNil      bool
+		checkRemediate bool
+	}{
+		// Insufficient privileges error (from issue #223)
+		{
+			name: "insufficient privileges - service principal creation",
+			output: `Creating SP for RBAC with name rcap-sp-149357424, with role Custom-Owner (Block Billing and Subscription deletion) and in scopes /subscriptions/b23756f7-4594-40a3-980f-10bb6168fc20
+Insufficient privileges to complete the operation.`,
+			expectedType:   "insufficient_privileges",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "insufficient privileges - lowercase",
+			output:         "error: insufficient privileges to perform this action",
+			expectedType:   "insufficient_privileges",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+
+		// Authorization failed errors
+		{
+			name:           "authorization failed - camelcase",
+			output:         "AuthorizationFailed: The client does not have authorization to perform action",
+			expectedType:   "authorization_failed",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "authorization failed - spaces",
+			output:         "Error: Authorization failed for subscription",
+			expectedType:   "authorization_failed",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "does not have authorization",
+			output:         "The user does not have authorization to perform this operation",
+			expectedType:   "authorization_failed",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+
+		// Subscription not found
+		{
+			name:           "subscription not found - camelcase",
+			output:         "SubscriptionNotFound: The subscription 'xyz' could not be found",
+			expectedType:   "subscription_not_found",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "subscription not found - spaces",
+			output:         "Error: subscription not found in tenant",
+			expectedType:   "subscription_not_found",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "subscription was not found",
+			output:         "The subscription was not found or you don't have access",
+			expectedType:   "subscription_not_found",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+
+		// Resource group not found
+		{
+			name:           "resource group not found - camelcase",
+			output:         "ResourceGroupNotFound: Resource group 'mygroup' could not be found",
+			expectedType:   "resource_group_not_found",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "resource group not found - spaces",
+			output:         "Error: The resource group 'test-rg' was not found",
+			expectedType:   "resource_group_not_found",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+
+		// Quota exceeded
+		{
+			name:           "quota exceeded - camelcase",
+			output:         "QuotaExceeded: Operation could not be completed as it exceeds quota",
+			expectedType:   "quota_exceeded",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "quota exceeded - spaces",
+			output:         "Error: quota exceeded for resource type in region",
+			expectedType:   "quota_exceeded",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "exceeds quota",
+			output:         "The operation exceeds quota limits for VM cores",
+			expectedType:   "quota_exceeded",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+
+		// Service principal already exists
+		{
+			name:           "service principal already exists",
+			output:         "A service principal with this name already exists in the directory",
+			expectedType:   "sp_already_exists",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+
+		// Invalid credentials
+		{
+			name:           "invalid client secret",
+			output:         "AADSTS7000215: Invalid client secret provided",
+			expectedType:   "invalid_credentials",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "invalid_client error code",
+			output:         "error: invalid_client - the client credentials are not valid",
+			expectedType:   "invalid_credentials",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "credentials have expired",
+			output:         "The credentials have expired. Please re-authenticate.",
+			expectedType:   "invalid_credentials",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+
+		// Not logged in
+		{
+			name:           "please run az login",
+			output:         "ERROR: Please run 'az login' to setup account.",
+			expectedType:   "not_logged_in",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "not logged in",
+			output:         "Error: You are not logged in to Azure CLI",
+			expectedType:   "not_logged_in",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+		{
+			name:           "no subscription found",
+			output:         "ERROR: No subscription found. Run 'az account set' to select a subscription.",
+			expectedType:   "not_logged_in",
+			expectNil:      false,
+			checkRemediate: true,
+		},
+
+		// No error detected
+		{
+			name:         "no azure error - success output",
+			output:       "Successfully created resource group 'test-rg' in location 'eastus'",
+			expectedType: "",
+			expectNil:    true,
+		},
+		{
+			name:         "no azure error - empty output",
+			output:       "",
+			expectedType: "",
+			expectNil:    true,
+		},
+		{
+			name:         "no azure error - generic error",
+			output:       "Some random error occurred",
+			expectedType: "",
+			expectNil:    true,
+		},
+		{
+			name:         "no azure error - kubernetes error",
+			output:       "Error from server (NotFound): pods not found",
+			expectedType: "",
+			expectNil:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := DetectAzureError(tc.output)
+
+			if tc.expectNil {
+				if result != nil {
+					t.Errorf("Expected nil but got error type: %s", result.ErrorType)
+				}
+				return
+			}
+
+			if result == nil {
+				t.Errorf("Expected error type '%s' but got nil", tc.expectedType)
+				return
+			}
+
+			if result.ErrorType != tc.expectedType {
+				t.Errorf("Expected error type '%s' but got '%s'", tc.expectedType, result.ErrorType)
+			}
+
+			if result.Message == "" {
+				t.Error("Expected non-empty error message")
+			}
+
+			if tc.checkRemediate && len(result.Remediation) == 0 {
+				t.Error("Expected non-empty remediation steps")
+			}
+		})
+	}
+}
+
+func TestFormatAzureError(t *testing.T) {
+	tests := []struct {
+		name          string
+		info          *AzureErrorInfo
+		expectEmpty   bool
+		expectedParts []string
+	}{
+		{
+			name:        "nil input returns empty string",
+			info:        nil,
+			expectEmpty: true,
+		},
+		{
+			name: "formats insufficient privileges error",
+			info: &AzureErrorInfo{
+				ErrorType: "insufficient_privileges",
+				Message:   "Azure operation failed due to insufficient privileges",
+				Remediation: []string{
+					"Verify you have the required Azure AD role",
+					"Contact your Azure AD administrator",
+				},
+			},
+			expectEmpty: false,
+			expectedParts: []string{
+				"Azure Error Detected",
+				"insufficient privileges",
+				"Remediation steps:",
+				"Azure AD role",
+				"administrator",
+			},
+		},
+		{
+			name: "formats error with empty remediation",
+			info: &AzureErrorInfo{
+				ErrorType:   "test_error",
+				Message:     "Test error message",
+				Remediation: []string{},
+			},
+			expectEmpty: false,
+			expectedParts: []string{
+				"Azure Error Detected",
+				"Test error message",
+				"Remediation steps:",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := FormatAzureError(tc.info)
+
+			if tc.expectEmpty {
+				if result != "" {
+					t.Errorf("Expected empty string but got: %s", result)
+				}
+				return
+			}
+
+			if result == "" {
+				t.Error("Expected non-empty formatted string")
+				return
+			}
+
+			for _, part := range tc.expectedParts {
+				if !strings.Contains(result, part) {
+					t.Errorf("Expected formatted output to contain '%s', got: %s", part, result)
+				}
+			}
+		})
+	}
+}
