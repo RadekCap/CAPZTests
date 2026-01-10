@@ -9,7 +9,7 @@ import (
 
 const (
 	// DefaultDeploymentTimeout is the default timeout for control plane deployment
-	DefaultDeploymentTimeout = 45 * time.Minute
+	DefaultDeploymentTimeout = 60 * time.Minute
 
 	// DefaultASOControllerTimeout is the default timeout for ASO controller manager to become ready.
 	// ASO may take longer than other controllers due to its CRD initialization sequence:
@@ -19,7 +19,7 @@ const (
 	// DefaultCAPZUser is the default user identifier for CAPZ resources.
 	// Used in ClusterNamePrefix (for resource group naming) and User field.
 	// Extracted to a constant to ensure consistency across all usages.
-	DefaultCAPZUser = "rcapc"
+	DefaultCAPZUser = "rcapd"
 
 	// DefaultDeploymentEnv is the default deployment environment identifier.
 	// Used in ClusterNamePrefix and Environment field.
