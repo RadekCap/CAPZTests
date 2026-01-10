@@ -499,6 +499,13 @@ Simply type the command in Claude Code:
 
 Commands will prompt for any required information and guide you through the task.
 
+## Destructive Actions
+
+- Never delete Azure resources without explicit confirmation
+- When asked to "list", "check", or "show" resources, only report findings - do not take action
+- Always ask before: deleting, force-deleting, removing, or cleaning up resources
+- When listing resources that might need cleanup, present findings and wait for user instruction
+
 ## Documentation
 
 - `README.md` - Repository overview and quick start
