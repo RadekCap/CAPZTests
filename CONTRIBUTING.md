@@ -9,6 +9,7 @@ Thank you for your interest in contributing to the ARO-CAPZ Test Suite! This doc
 - [Making Changes](#making-changes)
 - [Pull Request Process](#pull-request-process)
 - [Test Execution Model](#test-execution-model)
+- [Testing Guidelines](#testing-guidelines)
 - [Coding Guidelines](#coding-guidelines)
   - [Go Code](#go-code)
   - [Test Code](#test-code)
@@ -163,6 +164,55 @@ Tests are **idempotent** - they skip steps already completed.
 - Each phase depends on resources from the previous phase
 - Tests interact with external state (Kind cluster, Azure resources)
 - Designed for workflow validation, not unit testing
+
+## Testing Guidelines
+
+This project follows proven Go testing best practices. For comprehensive guidelines, see **[docs/TESTING_GUIDELINES.md](docs/TESTING_GUIDELINES.md)**.
+
+### Key Practices
+
+| Practice | Description |
+|----------|-------------|
+| **Table-driven tests** | Use slice of structs with `t.Run()` subtests for multiple scenarios |
+| **t.Helper()** | Call at start of every helper function for proper error reporting |
+| **t.Cleanup()** | Use for automatic cleanup instead of manual defer |
+| **Descriptive errors** | Always include actual vs expected values in error messages |
+
+### Quick Reference
+
+```go
+// Table-driven test pattern
+func TestMyFunction(t *testing.T) {
+    tests := []struct {
+        name     string
+        input    string
+        expected string
+    }{
+        {"valid input", "foo", "FOO"},
+        {"empty input", "", ""},
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got := MyFunction(tt.input)
+            if got != tt.expected {
+                t.Errorf("MyFunction(%q) = %q, want %q", tt.input, got, tt.expected)
+            }
+        })
+    }
+}
+
+// Helper function pattern
+func RunCommand(t *testing.T, name string, args ...string) (string, error) {
+    t.Helper()  // Errors report caller's line number
+    // ... implementation
+}
+```
+
+### External References
+
+- [Go Wiki: Table-Driven Tests](https://go.dev/wiki/TableDrivenTests)
+- [Go Testing Package](https://pkg.go.dev/testing)
 
 ## Coding Guidelines
 
