@@ -70,6 +70,8 @@ func TestPhase_Specific(t *testing.T) {
 }
 ```
 
+This repository follows proven Go testing best practices including table-driven tests, `t.Helper()`, and `t.Cleanup()`. For comprehensive guidelines, see `docs/TESTING_GUIDELINES.md`.
+
 ## Development Commands
 
 ### Running Tests
@@ -511,6 +513,7 @@ Commands will prompt for any required information and guide you through the task
 - `README.md` - Repository overview and quick start
 - `test/README.md` - Detailed test suite documentation
 - `docs/INTEGRATION.md` - Integration patterns with cluster-api-installer
+- `docs/TESTING_GUIDELINES.md` - Go testing best practices and guidelines
 - `TEST_COVERAGE.md` - Test coverage analysis and metrics
 
 ### Community Health Files
