@@ -261,6 +261,11 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 	config := NewTestConfig()
 	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
 
+	// Get the specific AROControlPlane name for the cluster being deployed
+	// This prevents checking the wrong control plane when multiple clusters exist (issue #355)
+	provisionedClusterName := config.GetProvisionedClusterName()
+	aroControlPlaneName := fmt.Sprintf("%s-control-plane", provisionedClusterName)
+
 	// Wait for control plane to be ready (with configurable timeout)
 	timeout := config.DeploymentTimeout
 	pollInterval := 30 * time.Second
@@ -268,6 +273,8 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 
 	// Print to stderr for immediate visibility (unbuffered)
 	PrintToTTY("\n=== Waiting for control plane to be ready ===\n")
+	PrintToTTY("Cluster: %s\n", provisionedClusterName)
+	PrintToTTY("AROControlPlane: %s\n", aroControlPlaneName)
 	PrintToTTY("Namespace: %s\n", config.TestNamespace)
 	PrintToTTY("Timeout: %v | Poll interval: %v\n\n", timeout, pollInterval)
 	t.Logf("Waiting for control plane to be ready (namespace: %s, timeout: %v)...", config.TestNamespace, timeout)
@@ -289,9 +296,9 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 		PrintToTTY("[%d] Checking control plane status...\n", iteration)
 
 		// ARO uses AROControlPlane, not kubeadmcontrolplane
-		// Use configurable namespace to check control plane status
+		// Query the specific AROControlPlane for this cluster (issue #355)
 		output, err := RunCommand(t, "kubectl", "--context", context, "get",
-			"arocontrolplane", "-n", config.TestNamespace, "-o", "jsonpath={.items[0].status.ready}")
+			"arocontrolplane", aroControlPlaneName, "-n", config.TestNamespace, "-o", "jsonpath={.status.ready}")
 
 		// Print the result of the check
 		if err != nil {
@@ -308,8 +315,9 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 		}
 
 		// Fetch and display AROControlPlane conditions for better visibility
+		// Query the specific AROControlPlane for this cluster (issue #355)
 		conditionsOutput, condErr := RunCommandQuiet(t, "kubectl", "--context", context, "get",
-			"arocontrolplane", "-n", config.TestNamespace, "-o", "jsonpath={.items[0].status.conditions}")
+			"arocontrolplane", aroControlPlaneName, "-n", config.TestNamespace, "-o", "jsonpath={.status.conditions}")
 		if condErr == nil && strings.TrimSpace(conditionsOutput) != "" {
 			PrintToTTY("[%d] 📋 AROControlPlane conditions:\n", iteration)
 			PrintToTTY("%s", FormatAROControlPlaneConditions(conditionsOutput))
