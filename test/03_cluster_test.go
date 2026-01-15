@@ -91,10 +91,10 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 		PrintToTTY("Output streaming below...\n\n")
 
 		// Set environment variables for deploy-charts.sh:
-		// - USE_KIND=true: Use the Kind cluster context (kind-$KIND_CLUSTER_NAME)
+		// - DO_INIT_KIND=true: Initialize Kind cluster context
 		// - DO_DEPLOY=true: Enable deployment mode
 		// Pass chart names as arguments: cluster-api and cluster-api-provider-azure
-		SetEnvVar(t, "USE_KIND", "true")
+		SetEnvVar(t, "DO_INIT_KIND", "true")
 		SetEnvVar(t, "DO_DEPLOY", "true")
 
 		// Run the deployment script with chart arguments
