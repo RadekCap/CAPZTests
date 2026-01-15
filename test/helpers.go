@@ -1963,8 +1963,23 @@ func GetDeletionResourceStatus(t *testing.T, kubeContext, namespace, clusterName
 func FormatDeletionProgress(status DeletionResourceStatus) string {
 	var sb strings.Builder
 
+	// Box width: 61 characters inside the borders
+	// Emoji takes 2 visual cells but 4 bytes, so we add 2 to valueWidth for padding
+	const labelWidth = 18 // "AROControlPlane:" padded
+
+	// Helper to format a row with emoji, label, and value
+	formatRow := func(emoji, label, value string) string {
+		// Layout: "│ " + emoji(2) + " " + label(18) + value(38) + " │"
+		// Total: 2 + 2 + 1 + 18 + 38 + 2 = 63, but emoji is 4 bytes so Go sees 65
+		const valueWidth = 38
+		if len(value) > valueWidth {
+			value = value[:valueWidth-3] + "..."
+		}
+		return fmt.Sprintf("│ %s %-*s%-*s │\n", emoji, labelWidth, label+":", valueWidth, value)
+	}
+
 	sb.WriteString("┌─────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│                    DELETION PROGRESS                        │\n")
+	sb.WriteString("│                     DELETION PROGRESS                       │\n")
 	sb.WriteString("├─────────────────────────────────────────────────────────────┤\n")
 
 	// Cluster status
@@ -1973,35 +1988,35 @@ func FormatDeletionProgress(status DeletionResourceStatus) string {
 		if phase == "" {
 			phase = "unknown"
 		}
-		sb.WriteString(fmt.Sprintf("│ 🔄 Cluster:          %-39s │\n", fmt.Sprintf("Deleting (phase: %s)", phase)))
+		sb.WriteString(formatRow("🔄", "Cluster", fmt.Sprintf("Deleting (phase: %s)", phase)))
 	} else {
-		sb.WriteString("│ ✅ Cluster:          Deleted                                │\n")
+		sb.WriteString(formatRow("✅", "Cluster", "Deleted"))
 	}
 
 	// Finalizers
 	if len(status.ClusterFinalizers) > 0 {
-		sb.WriteString(fmt.Sprintf("│ 🔒 Finalizers:       %-39d │\n", len(status.ClusterFinalizers)))
+		sb.WriteString(formatRow("🔒", "Finalizers", fmt.Sprintf("%d active", len(status.ClusterFinalizers))))
 		for _, f := range status.ClusterFinalizers {
-			// Truncate long finalizer names
-			if len(f) > 35 {
-				f = f[:32] + "..."
+			// Truncate long finalizer names to fit in the box
+			if len(f) > 53 {
+				f = f[:50] + "..."
 			}
-			sb.WriteString(fmt.Sprintf("│    - %-53s │\n", f))
+			sb.WriteString(fmt.Sprintf("│      - %-53s│\n", f))
 		}
 	}
 
 	// AROControlPlane
 	if status.AROControlPlaneCount > 0 {
-		sb.WriteString(fmt.Sprintf("│ 🔄 AROControlPlane:  %-39s │\n", fmt.Sprintf("%d remaining", status.AROControlPlaneCount)))
+		sb.WriteString(formatRow("🔄", "AROControlPlane", fmt.Sprintf("%d remaining", status.AROControlPlaneCount)))
 	} else {
-		sb.WriteString("│ ✅ AROControlPlane:  Deleted                                │\n")
+		sb.WriteString(formatRow("✅", "AROControlPlane", "Deleted"))
 	}
 
 	// MachinePool
 	if status.MachinePoolCount > 0 {
-		sb.WriteString(fmt.Sprintf("│ 🔄 MachinePool:      %-39s │\n", fmt.Sprintf("%d remaining", status.MachinePoolCount)))
+		sb.WriteString(formatRow("🔄", "MachinePool", fmt.Sprintf("%d remaining", status.MachinePoolCount)))
 	} else {
-		sb.WriteString("│ ✅ MachinePool:      Deleted                                │\n")
+		sb.WriteString(formatRow("✅", "MachinePool", "Deleted"))
 	}
 
 	// Azure resource group
@@ -2011,9 +2026,9 @@ func FormatDeletionProgress(status DeletionResourceStatus) string {
 			if stateInfo == "" {
 				stateInfo = "exists"
 			}
-			sb.WriteString(fmt.Sprintf("│ 🔄 Azure RG:         %-39s │\n", fmt.Sprintf("%s (%s)", status.AzureResourceGroup, stateInfo)))
+			sb.WriteString(formatRow("🔄", "Azure RG", fmt.Sprintf("%s (%s)", status.AzureResourceGroup, stateInfo)))
 		} else {
-			sb.WriteString(fmt.Sprintf("│ ✅ Azure RG:         %-39s │\n", "Deleted"))
+			sb.WriteString(formatRow("✅", "Azure RG", "Deleted"))
 		}
 	}
 
