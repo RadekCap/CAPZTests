@@ -306,10 +306,36 @@ Centralized helpers in `helpers.go` ensure:
 
 ## Git Workflow
 
-- Main branch for PRs: `readme`
-- Tests run on: `main`, `readme`, and specific feature branches
+### Branching Strategy
+- Main branch for PRs: `main`
+- Tests run on: `main` and feature branches
 - CI runs check dependencies tests automatically via GitHub Actions
 - Use `make test` locally before pushing (runs fast check dependencies tests)
+
+### Rebase, Not Merge
+
+**Important**: This repository uses rebase instead of merge to maintain a clean, linear commit history.
+
+**Updating your feature branch:**
+```bash
+git fetch origin main
+git rebase origin/main
+# If already pushed, force push with lease:
+git push --force-with-lease
+```
+
+**Why rebase?**
+- Creates clean, linear history (no merge commits)
+- Makes git log and bisect easier to use
+- Each PR's commits are clearly visible
+
+**Never do this:**
+```bash
+git merge main  # Creates merge commits - avoid this
+```
+
+**Using the `/sync-main` command:**
+The `/sync-main` Claude Code command helps keep your branch updated with proper rebase workflow. It handles fetching, rebasing, and force pushing safely.
 
 ## Known Issues
 

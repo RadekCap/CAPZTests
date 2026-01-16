@@ -65,9 +65,9 @@ type TestConfig struct {
 	AzureSubscription     string
 	Environment           string
 	User                  string
-	TestNamespace   string // Namespace for testing resources (default: "default")
-	CAPINamespace   string // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" when USE_K8S=true)
-	CAPZNamespace   string // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" when USE_K8S=true)
+	TestNamespace         string // Namespace for testing resources (default: "default")
+	CAPINamespace         string // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" when USE_K8S=true)
+	CAPZNamespace         string // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" when USE_K8S=true)
 
 	// Paths
 	ClusterctlBinPath string
@@ -96,9 +96,9 @@ func NewTestConfig() *TestConfig {
 		AzureSubscription:     os.Getenv("AZURE_SUBSCRIPTION_NAME"),
 		Environment:           GetEnvOrDefault("DEPLOYMENT_ENV", DefaultDeploymentEnv),
 		User:                  GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser),
-		TestNamespace: GetEnvOrDefault("TEST_NAMESPACE", "default"),
-		CAPINamespace: getControllerNamespace("CAPI_NAMESPACE", "capi-system"),
-		CAPZNamespace: getControllerNamespace("CAPZ_NAMESPACE", "capz-system"),
+		TestNamespace:         GetEnvOrDefault("TEST_NAMESPACE", "default"),
+		CAPINamespace:         getControllerNamespace("CAPI_NAMESPACE", "capi-system"),
+		CAPZNamespace:         getControllerNamespace("CAPZ_NAMESPACE", "capz-system"),
 
 		// Paths
 		ClusterctlBinPath: GetEnvOrDefault("CLUSTERCTL_BIN", "./bin/clusterctl"),

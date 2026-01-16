@@ -99,6 +99,35 @@ Types:
 - `refactor:` - Code refactoring
 - `test:` - Test additions/changes
 
+### Keeping Your Branch Current (Rebase, Not Merge)
+
+**Important**: This repository uses rebase instead of merge to maintain a clean, linear commit history. Never use `git merge main` to update your feature branch.
+
+```bash
+# Update your feature branch with latest main
+git fetch origin main
+git rebase origin/main
+
+# If you've already pushed your branch, force push with lease
+git push --force-with-lease
+```
+
+**Why rebase?**
+- Creates a clean, linear commit history
+- Makes it easier to review and bisect changes
+- Avoids polluting history with merge commits
+- Each PR's commits are clearly visible
+
+**Handling conflicts during rebase:**
+1. Git will pause at conflicting commits
+2. Resolve conflicts in the affected files
+3. Stage resolved files: `git add <file>`
+4. Continue rebase: `git rebase --continue`
+5. If things go wrong: `git rebase --abort` to start over
+
+**Using the `/sync-main` command:**
+If you use Claude Code, the `/sync-main` command helps keep your branch updated with proper rebase workflow.
+
 ### Adding New Test Phases
 
 See [CLAUDE.md](CLAUDE.md#adding-a-new-test-phase) for the detailed pattern. Key steps:
@@ -132,10 +161,18 @@ See [CLAUDE.md](CLAUDE.md#adding-a-new-test-phase) for the detailed pattern. Key
    make lint
    make test
    ```
-4. **Commit with descriptive message** referencing issue number
-5. **Push and create PR** with detailed description
-6. **Address review feedback**
-7. **Squash merge** when approved
+4. **Keep your branch up to date with main** using rebase (not merge):
+   ```bash
+   git fetch origin main
+   git rebase origin/main
+   ```
+   - Resolve any conflicts during rebase
+   - If rebase becomes complex, consider `git rebase --abort` and starting fresh
+5. **Commit with descriptive message** referencing issue number
+6. **Push and create PR** with detailed description
+   - If you've rebased after pushing, use `git push --force-with-lease`
+7. **Address review feedback**
+8. **Rebase and squash** when approved (repository uses "Rebase and merge" or "Squash and merge")
 
 ### PR Checklist
 
