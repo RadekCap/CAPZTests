@@ -2,6 +2,26 @@
 
 When deleting ARO HCP clusters or resource groups, some Azure resources may become orphaned - they survive the parent resource group deletion but remain in Azure. This document explains how to find and clean up these orphaned resources.
 
+## Quick Cleanup (Recommended)
+
+For automated cleanup of orphaned resources, use the provided script:
+
+```bash
+# Interactive cleanup - will show resources and confirm before deleting
+make clean-azure-resources
+
+# Non-interactive cleanup - deletes without prompting
+FORCE=1 make clean-azure-resources
+
+# Dry-run to see what would be deleted without making changes
+./scripts/cleanup-azure-resources.sh --dry-run
+
+# Custom prefix (default uses CAPZ_USER env var or 'rcap')
+./scripts/cleanup-azure-resources.sh --prefix myprefix
+```
+
+The `make clean` and `make clean-all` targets also include orphaned resource cleanup.
+
 ## Background
 
 Orphaned resources can occur when:

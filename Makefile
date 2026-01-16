@@ -1,4 +1,4 @@
-.PHONY: test _check-dep _setup _cluster _generate-yamls _deploy-crds _verify _delete test-all _test-all-impl clean clean-all clean-azure help summary
+.PHONY: test _check-dep _setup _cluster _generate-yamls _deploy-crds _verify _delete test-all _test-all-impl clean clean-all clean-azure clean-azure-resources help summary
 
 # Default values
 # Extract CAPZ_USER default from Go config to maintain single source of truth
@@ -420,6 +420,24 @@ clean: ## Clean up test resources (interactive, use FORCE=1 to skip prompts)
 			echo "Azure resource group '$(CLEANUP_RESOURCE_GROUP)' not found (already clean)."; \
 		fi; \
 		echo ""; \
+		echo "--- Orphaned Azure Resources ---"; \
+		echo "These are resources with prefix '$(CAPZ_USER)' that may exist outside the resource group."; \
+		echo ""; \
+		if ! command -v az >/dev/null 2>&1; then \
+			echo "⚠️  Azure CLI (az) not available - skipping orphaned resources cleanup"; \
+		elif ! az account show >/dev/null 2>&1; then \
+			echo "⚠️  Not logged in to Azure - skipping orphaned resources cleanup"; \
+		else \
+			read -p "Search for and delete orphaned Azure resources with prefix '$(CAPZ_USER)'? [y/N] " -n 1 -r; \
+			echo ""; \
+			if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+				./scripts/cleanup-azure-resources.sh --prefix "$(CAPZ_USER)" || echo "Orphaned resources cleanup encountered an error"; \
+			else \
+				echo "Skipped orphaned resources cleanup."; \
+				echo "Tip: Run 'make clean-azure-resources' to clean orphaned resources separately."; \
+			fi; \
+		fi; \
+		echo ""; \
 		if [ -f "$(DEPLOYMENT_STATE_FILE)" ]; then \
 			echo "Removing deployment state file..."; \
 			rm -f "$(DEPLOYMENT_STATE_FILE)"; \
@@ -444,6 +462,9 @@ clean-all: ## Clean up ALL test resources without prompting (local + Azure)
 	@echo ""
 	@# Delete Azure resource group first (before local resources)
 	@$(MAKE) --no-print-directory _clean-azure-force
+	@echo ""
+	@# Delete orphaned Azure resources (not tied to resource group)
+	@$(MAKE) --no-print-directory _clean-azure-resources-force
 	@echo ""
 	@# Delete management cluster
 	@if kind get clusters 2>/dev/null | grep -q "^$(CLEANUP_MANAGEMENT_CLUSTER)$$"; then \
@@ -541,6 +562,23 @@ _clean-azure-force:
 	else \
 		echo "Azure resource group '$(CLEANUP_RESOURCE_GROUP)' not found (already clean)."; \
 	fi
+
+clean-azure-resources: ## Delete Azure resources matching naming pattern (orphaned resources not in resource group)
+	@echo "=== Azure Orphaned Resources Cleanup ==="
+	@echo ""
+	@echo "This will find and delete Azure resources matching the test naming pattern."
+	@echo "These resources may not be in the resource group and can survive RG deletion."
+	@echo ""
+	@if [ "$(FORCE)" = "1" ]; then \
+		./scripts/cleanup-azure-resources.sh --prefix "$(CAPZ_USER)" --force; \
+	else \
+		./scripts/cleanup-azure-resources.sh --prefix "$(CAPZ_USER)"; \
+	fi
+
+# Internal target: force delete orphaned Azure resources without prompting
+.PHONY: _clean-azure-resources-force
+_clean-azure-resources-force:
+	@./scripts/cleanup-azure-resources.sh --prefix "$(CAPZ_USER)" --force 2>/dev/null || true
 
 setup-submodule: ## Add cluster-api-installer as a git submodule
 	git submodule add -b ARO-ASO https://github.com/RadekCap/cluster-api-installer.git vendor/cluster-api-installer || true
