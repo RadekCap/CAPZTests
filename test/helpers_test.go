@@ -2283,3 +2283,40 @@ func TestFormatComponentVersions_WithRepositories(t *testing.T) {
 	// Clean up
 	ClearClonedRepositories()
 }
+
+// TestFormatComponentVersions_ConfigFallback tests that FormatComponentVersions
+// falls back to config values when no repositories are registered in memory.
+// This is critical for cross-process test execution where each phase runs
+// in a separate go test process.
+func TestFormatComponentVersions_ConfigFallback(t *testing.T) {
+	// Clear any registered repositories to simulate fresh process
+	ClearClonedRepositories()
+
+	// Create config with repository info (as would be available in verification phase)
+	config := &TestConfig{
+		RepoURL:               "https://github.com/RadekCap/cluster-api-installer",
+		RepoBranch:            "ARO-ASO",
+		ManagementClusterName: "test-cluster",
+		WorkloadClusterName:   "workload-cluster",
+		Region:                "eastus",
+		ClusterNamePrefix:     "test",
+		OpenShiftVersion:      "4.21",
+	}
+
+	versions := []ComponentVersion{
+		{Name: "CAPZ", Version: "v1.19.0", Image: "mcr.microsoft.com/capz:v1.19.0"},
+	}
+
+	result := FormatComponentVersions(versions, config)
+
+	// Check for repository section from config fallback
+	if !strings.Contains(result, "USED REPOSITORIES") {
+		t.Error("Output should contain USED REPOSITORIES section from config fallback")
+	}
+	if !strings.Contains(result, "https://github.com/RadekCap/cluster-api-installer") {
+		t.Error("Output should contain repository URL from config")
+	}
+	if !strings.Contains(result, "Branch: ARO-ASO") {
+		t.Error("Output should contain branch name from config")
+	}
+}
