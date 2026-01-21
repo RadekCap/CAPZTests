@@ -313,17 +313,17 @@ delete_resources() {
         # First verify the resource still exists (Resource Graph may have stale data)
         if ! az resource show --ids "$resource_id" >/dev/null 2>&1; then
             echo "SKIPPED (not found)"
-            ((skipped++))
+            ((skipped++)) || true
             continue
         fi
 
         # Attempt deletion
         if az resource delete --ids "$resource_id" --no-wait 2>/dev/null; then
             echo "INITIATED"
-            ((deleted++))
+            ((deleted++)) || true
         else
             echo "FAILED"
-            ((failed++))
+            ((failed++)) || true
         fi
     done <<< "$resource_ids"
 
@@ -424,10 +424,10 @@ delete_ad_applications() {
         # Attempt deletion
         if az ad app delete --id "$appId" 2>/dev/null; then
             echo "DELETED"
-            ((deleted++))
+            ((deleted++)) || true
         else
             echo "FAILED"
-            ((failed++))
+            ((failed++)) || true
         fi
     done < <(echo "$apps_json" | jq -r '.[].appId')
 
@@ -524,10 +524,10 @@ delete_service_principals() {
         # Attempt deletion (may fail if already deleted with its App)
         if az ad sp delete --id "$spId" 2>/dev/null; then
             echo "DELETED"
-            ((deleted++))
+            ((deleted++)) || true
         else
             echo "SKIPPED (already deleted)"
-            ((skipped++))
+            ((skipped++)) || true
         fi
     done < <(echo "$sps_json" | jq -r '.[].id')
 
