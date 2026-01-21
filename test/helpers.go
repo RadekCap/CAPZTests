@@ -1393,6 +1393,7 @@ func FormatComponentVersions(versions []ComponentVersion, config *TestConfig) st
 	}
 
 	// Used repositories
+	// First try in-memory registry (works when tests run in same process)
 	repos := GetClonedRepositories()
 	if len(repos) > 0 {
 		result.WriteString("\n=== USED REPOSITORIES ===\n\n")
@@ -1400,6 +1401,11 @@ func FormatComponentVersions(versions []ComponentVersion, config *TestConfig) st
 			result.WriteString(fmt.Sprintf("- %s\n", repo.URL))
 			result.WriteString(fmt.Sprintf("  Branch: %s\n", repo.Branch))
 		}
+	} else if config != nil && config.RepoURL != "" {
+		// Fallback to config values (works across separate test processes)
+		result.WriteString("\n=== USED REPOSITORIES ===\n\n")
+		result.WriteString(fmt.Sprintf("- %s\n", config.RepoURL))
+		result.WriteString(fmt.Sprintf("  Branch: %s\n", config.RepoBranch))
 	}
 
 	// Component versions
