@@ -2320,3 +2320,508 @@ func TestFormatComponentVersions_ConfigFallback(t *testing.T) {
 		t.Error("Output should contain branch name from config")
 	}
 }
+
+// ============================================================================
+// Configuration Validation Tests (Issue #396)
+// ============================================================================
+
+// TestValidateAzureRegion tests the Azure region validation function.
+func TestValidateAzureRegion(t *testing.T) {
+	tests := []struct {
+		name        string
+		region      string
+		expectError bool
+		errorMsgs   []string // Substrings to check in error message
+	}{
+		// Valid regions (from the known list)
+		{
+			name:        "valid region - eastus",
+			region:      "eastus",
+			expectError: false,
+		},
+		{
+			name:        "valid region - westeurope",
+			region:      "westeurope",
+			expectError: false,
+		},
+		{
+			name:        "valid region - uksouth",
+			region:      "uksouth",
+			expectError: false,
+		},
+		{
+			name:        "valid region - uppercase (normalized)",
+			region:      "EASTUS",
+			expectError: false, // Should be normalized to lowercase
+		},
+		{
+			name:        "valid region - mixed case",
+			region:      "EastUS",
+			expectError: false, // Should be normalized to lowercase
+		},
+		{
+			name:        "valid region - australiaeast",
+			region:      "australiaeast",
+			expectError: false,
+		},
+
+		// Invalid regions
+		{
+			name:        "empty region",
+			region:      "",
+			expectError: true,
+			errorMsgs:   []string{"REGION is empty", "To fix this"},
+		},
+		{
+			name:        "invalid region - typo",
+			region:      "eastuss",
+			expectError: true,
+			errorMsgs:   []string{"not a valid Azure region", "To fix this"},
+		},
+		{
+			name:        "invalid region - made up",
+			region:      "neverland",
+			expectError: true,
+			errorMsgs:   []string{"not a valid Azure region", "Common regions"},
+		},
+		{
+			name:        "invalid region - with space",
+			region:      "east us",
+			expectError: true,
+			errorMsgs:   []string{"not a valid Azure region", "To fix this"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateAzureRegion(t, tt.region)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("ValidateAzureRegion(t, %q) expected error, got nil", tt.region)
+					return
+				}
+				for _, msg := range tt.errorMsgs {
+					if !strings.Contains(err.Error(), msg) {
+						t.Errorf("ValidateAzureRegion(t, %q) error = %q, expected to contain %q",
+							tt.region, err.Error(), msg)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("ValidateAzureRegion(t, %q) unexpected error: %v", tt.region, err)
+				}
+			}
+		})
+	}
+}
+
+// TestAzureRegionsMap tests that the azureRegions map contains expected regions.
+func TestAzureRegionsMap(t *testing.T) {
+	// Verify some expected regions are in the map
+	expectedRegions := []string{
+		"eastus", "eastus2", "westus", "westus2",
+		"northeurope", "westeurope", "uksouth",
+		"eastasia", "southeastasia", "australiaeast",
+	}
+
+	for _, region := range expectedRegions {
+		if !azureRegions[region] {
+			t.Errorf("Expected region '%s' to be in azureRegions map", region)
+		}
+	}
+
+	// Verify map is not empty
+	if len(azureRegions) < 20 {
+		t.Errorf("Expected at least 20 regions in azureRegions map, got %d", len(azureRegions))
+	}
+}
+
+// TestFindSimilarRegions tests the region suggestion function.
+func TestFindSimilarRegions(t *testing.T) {
+	regions := []string{"eastus", "eastus2", "westus", "westus2", "westeurope", "northeurope"}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "find regions containing east",
+			input:    "east",
+			expected: []string{"eastus", "eastus2"},
+		},
+		{
+			name:     "find regions containing europe",
+			input:    "europe",
+			expected: []string{"westeurope", "northeurope"},
+		},
+		{
+			name:     "no matches",
+			input:    "xyz",
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findSimilarRegions(tt.input, regions)
+
+			// Check that expected results are found
+			for _, exp := range tt.expected {
+				found := false
+				for _, res := range result {
+					if res == exp {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("findSimilarRegions(%q, regions) expected to contain %q, got %v",
+						tt.input, exp, result)
+				}
+			}
+		})
+	}
+
+	// Test that results are limited to 3
+	t.Run("limits to 3 suggestions", func(t *testing.T) {
+		manyRegions := []string{"eus1", "eus2", "eus3", "eus4", "eus5"}
+		result := findSimilarRegions("eus", manyRegions)
+		if len(result) > 3 {
+			t.Errorf("findSimilarRegions should return at most 3 suggestions, got %d", len(result))
+		}
+	})
+}
+
+// TestValidateTimeout tests the generic timeout validation function.
+func TestValidateTimeout(t *testing.T) {
+	tests := []struct {
+		name        string
+		timeout     time.Duration
+		min         time.Duration
+		max         time.Duration
+		expectError bool
+		errorMsgs   []string
+	}{
+		// Valid cases
+		{
+			name:        "within range",
+			timeout:     30 * time.Minute,
+			min:         15 * time.Minute,
+			max:         3 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "at minimum",
+			timeout:     15 * time.Minute,
+			min:         15 * time.Minute,
+			max:         3 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "at maximum",
+			timeout:     3 * time.Hour,
+			min:         15 * time.Minute,
+			max:         3 * time.Hour,
+			expectError: false,
+		},
+
+		// Invalid cases
+		{
+			name:        "below minimum",
+			timeout:     5 * time.Minute,
+			min:         15 * time.Minute,
+			max:         3 * time.Hour,
+			expectError: true,
+			errorMsgs:   []string{"too short", "minimum"},
+		},
+		{
+			name:        "above maximum",
+			timeout:     5 * time.Hour,
+			min:         15 * time.Minute,
+			max:         3 * time.Hour,
+			expectError: true,
+			errorMsgs:   []string{"too long", "maximum"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateTimeout("TEST_TIMEOUT", tt.timeout, tt.min, tt.max)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("ValidateTimeout expected error, got nil")
+					return
+				}
+				for _, msg := range tt.errorMsgs {
+					if !strings.Contains(err.Error(), msg) {
+						t.Errorf("ValidateTimeout error = %q, expected to contain %q",
+							err.Error(), msg)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("ValidateTimeout unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateDeploymentTimeout tests the deployment timeout validation.
+func TestValidateDeploymentTimeout(t *testing.T) {
+	tests := []struct {
+		name        string
+		timeout     time.Duration
+		expectError bool
+	}{
+		{"valid - 45 minutes", 45 * time.Minute, false},
+		{"valid - 1 hour", 1 * time.Hour, false},
+		{"valid - 2 hours", 2 * time.Hour, false},
+		{"valid - at minimum", MinDeploymentTimeout, false},
+		{"valid - at maximum", MaxDeploymentTimeout, false},
+		{"invalid - 5 minutes", 5 * time.Minute, true},
+		{"invalid - 10 minutes", 10 * time.Minute, true},
+		{"invalid - 5 hours", 5 * time.Hour, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateDeploymentTimeout(tt.timeout)
+			if tt.expectError && err == nil {
+				t.Errorf("ValidateDeploymentTimeout(%v) expected error, got nil", tt.timeout)
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("ValidateDeploymentTimeout(%v) unexpected error: %v", tt.timeout, err)
+			}
+		})
+	}
+}
+
+// TestValidateASOControllerTimeout tests the ASO controller timeout validation.
+func TestValidateASOControllerTimeout(t *testing.T) {
+	tests := []struct {
+		name        string
+		timeout     time.Duration
+		expectError bool
+	}{
+		{"valid - 5 minutes", 5 * time.Minute, false},
+		{"valid - 10 minutes", 10 * time.Minute, false},
+		{"valid - at minimum", MinASOControllerTimeout, false},
+		{"valid - at maximum", MaxASOControllerTimeout, false},
+		{"invalid - 1 minute", 1 * time.Minute, true},
+		{"invalid - 1 hour", 1 * time.Hour, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateASOControllerTimeout(tt.timeout)
+			if tt.expectError && err == nil {
+				t.Errorf("ValidateASOControllerTimeout(%v) expected error, got nil", tt.timeout)
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("ValidateASOControllerTimeout(%v) unexpected error: %v", tt.timeout, err)
+			}
+		})
+	}
+}
+
+// TestTimeoutConstants tests that timeout constants have correct values.
+func TestTimeoutConstants(t *testing.T) {
+	// Verify minimum/maximum relationship
+	if MinDeploymentTimeout >= MaxDeploymentTimeout {
+		t.Errorf("MinDeploymentTimeout (%v) should be less than MaxDeploymentTimeout (%v)",
+			MinDeploymentTimeout, MaxDeploymentTimeout)
+	}
+
+	if MinASOControllerTimeout >= MaxASOControllerTimeout {
+		t.Errorf("MinASOControllerTimeout (%v) should be less than MaxASOControllerTimeout (%v)",
+			MinASOControllerTimeout, MaxASOControllerTimeout)
+	}
+
+	// Verify sensible values
+	if MinDeploymentTimeout < 10*time.Minute {
+		t.Errorf("MinDeploymentTimeout (%v) seems too short", MinDeploymentTimeout)
+	}
+
+	if MaxDeploymentTimeout > 6*time.Hour {
+		t.Errorf("MaxDeploymentTimeout (%v) seems too long", MaxDeploymentTimeout)
+	}
+}
+
+// TestConfigValidationResult tests the ConfigValidationResult struct.
+func TestConfigValidationResult(t *testing.T) {
+	result := ConfigValidationResult{
+		Variable:   "TEST_VAR",
+		Value:      "test-value",
+		IsValid:    true,
+		Error:      nil,
+		IsCritical: true,
+		SkipReason: "",
+	}
+
+	if result.Variable != "TEST_VAR" {
+		t.Errorf("Variable = %q, expected %q", result.Variable, "TEST_VAR")
+	}
+	if result.Value != "test-value" {
+		t.Errorf("Value = %q, expected %q", result.Value, "test-value")
+	}
+	if !result.IsValid {
+		t.Error("IsValid should be true")
+	}
+	if result.Error != nil {
+		t.Errorf("Error should be nil, got %v", result.Error)
+	}
+	if !result.IsCritical {
+		t.Error("IsCritical should be true")
+	}
+}
+
+// TestFormatValidationResults tests the validation results formatter.
+func TestFormatValidationResults(t *testing.T) {
+	tests := []struct {
+		name    string
+		results []ConfigValidationResult
+		checks  []string
+	}{
+		{
+			name: "all valid",
+			results: []ConfigValidationResult{
+				{Variable: "VAR1", Value: "val1", IsValid: true, IsCritical: true},
+				{Variable: "VAR2", Value: "val2", IsValid: true, IsCritical: false},
+			},
+			checks: []string{"CONFIGURATION VALIDATION", "VAR1", "VAR2", "✅", "All configuration validations passed"},
+		},
+		{
+			name: "critical error",
+			results: []ConfigValidationResult{
+				{Variable: "VAR1", Value: "val1", IsValid: true, IsCritical: true},
+				{Variable: "VAR2", Value: "bad", IsValid: false, IsCritical: true, Error: fmt.Errorf("invalid value")},
+			},
+			checks: []string{"VAR1", "VAR2", "❌", "critical error"},
+		},
+		{
+			name: "warning only",
+			results: []ConfigValidationResult{
+				{Variable: "VAR1", Value: "val1", IsValid: true, IsCritical: true},
+				{Variable: "VAR2", Value: "warn", IsValid: false, IsCritical: false, Error: fmt.Errorf("warning")},
+			},
+			checks: []string{"VAR1", "VAR2", "⚠️", "warning"},
+		},
+		{
+			name: "mixed errors and warnings",
+			results: []ConfigValidationResult{
+				{Variable: "VAR1", Value: "ok", IsValid: true, IsCritical: true},
+				{Variable: "VAR2", Value: "bad", IsValid: false, IsCritical: true, Error: fmt.Errorf("error")},
+				{Variable: "VAR3", Value: "warn", IsValid: false, IsCritical: false, Error: fmt.Errorf("warning")},
+			},
+			checks: []string{"VAR1", "VAR2", "VAR3", "❌", "⚠️", "critical error", "warning"},
+		},
+		{
+			name:    "empty results",
+			results: []ConfigValidationResult{},
+			checks:  []string{"CONFIGURATION VALIDATION", "All configuration validations passed"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatValidationResults(tt.results)
+
+			for _, check := range tt.checks {
+				if !strings.Contains(result, check) {
+					t.Errorf("FormatValidationResults() output should contain %q, got:\n%s", check, result)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateAllConfigurations tests the comprehensive configuration validation.
+func TestValidateAllConfigurations(t *testing.T) {
+	// Create a valid config
+	config := &TestConfig{
+		CAPZUser:             "rcap",
+		Environment:          "stage",
+		ClusterNamePrefix:    "rcap-stage",
+		TestNamespace:        "default",
+		Region:               "uksouth",
+		DeploymentTimeout:    45 * time.Minute,
+		ASOControllerTimeout: 10 * time.Minute,
+	}
+
+	results := ValidateAllConfigurations(t, config)
+
+	// Should have results for all validations
+	if len(results) == 0 {
+		t.Error("ValidateAllConfigurations should return non-empty results")
+	}
+
+	// All should be valid with this config
+	for _, r := range results {
+		if !r.IsValid {
+			t.Errorf("Validation for %s failed unexpectedly: %v", r.Variable, r.Error)
+		}
+	}
+}
+
+// TestValidateAllConfigurations_InvalidConfig tests validation with invalid config.
+func TestValidateAllConfigurations_InvalidConfig(t *testing.T) {
+	// Create an invalid config (RFC 1123 violation - uppercase)
+	config := &TestConfig{
+		CAPZUser:             "RCAP", // Invalid - uppercase
+		Environment:          "stage",
+		ClusterNamePrefix:    "RCAP-stage", // Invalid - uppercase
+		TestNamespace:        "default",
+		Region:               "uksouth",
+		DeploymentTimeout:    45 * time.Minute,
+		ASOControllerTimeout: 10 * time.Minute,
+	}
+
+	results := ValidateAllConfigurations(t, config)
+
+	// Should have at least one invalid result
+	hasInvalid := false
+	for _, r := range results {
+		if !r.IsValid {
+			hasInvalid = true
+			break
+		}
+	}
+
+	if !hasInvalid {
+		t.Error("ValidateAllConfigurations should detect invalid config (uppercase in RFC 1123 names)")
+	}
+}
+
+// TestFormatRemediationSteps tests the remediation steps formatter.
+func TestFormatRemediationSteps(t *testing.T) {
+	steps := []string{
+		"Step 1: Do this",
+		"Step 2: Do that",
+		"Step 3: Finish up",
+	}
+
+	result := formatRemediationSteps(steps)
+
+	for _, step := range steps {
+		if !strings.Contains(result, step) {
+			t.Errorf("formatRemediationSteps should contain %q, got: %s", step, result)
+		}
+	}
+
+	// Should have indentation
+	if !strings.Contains(result, "    ") {
+		t.Error("formatRemediationSteps should indent steps")
+	}
+}
+
+// TestFormatRemediationSteps_Empty tests with empty steps.
+func TestFormatRemediationSteps_Empty(t *testing.T) {
+	result := formatRemediationSteps([]string{})
+	if result != "" {
+		t.Errorf("formatRemediationSteps([]) should return empty string, got: %s", result)
+	}
+}
