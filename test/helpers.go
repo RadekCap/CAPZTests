@@ -1385,8 +1385,8 @@ func FormatComponentVersions(versions []ComponentVersion, config *TestConfig) st
 		result.WriteString("\nAzure ARO Cluster:\n")
 		result.WriteString(fmt.Sprintf("  Workload Cluster:   %s\n", config.WorkloadClusterName))
 		result.WriteString(fmt.Sprintf("  Region:             %s\n", config.Region))
-		if config.AzureSubscription != "" {
-			result.WriteString(fmt.Sprintf("  Subscription:       %s\n", config.AzureSubscription))
+		if config.AzureSubscriptionName != "" {
+			result.WriteString(fmt.Sprintf("  Subscription:       %s\n", config.AzureSubscriptionName))
 		}
 		result.WriteString(fmt.Sprintf("  Resource Group:     %s-resgroup\n", config.ClusterNamePrefix))
 		result.WriteString(fmt.Sprintf("  OpenShift Version:  %s\n", config.OpenShiftVersion))
@@ -1482,7 +1482,7 @@ func WriteDeploymentState(config *TestConfig) error {
 		WorkloadClusterName:   config.WorkloadClusterName,
 		ClusterNamePrefix:     config.ClusterNamePrefix,
 		Region:                config.Region,
-		User:                  config.User,
+		User:                  config.CAPZUser,
 		Environment:           config.Environment,
 	}
 

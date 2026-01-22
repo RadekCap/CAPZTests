@@ -37,7 +37,7 @@ Kubernetes resource names must follow RFC 1123 subdomain naming:
    - config := NewTestConfig()
 
 2. Validate CAPZ_USER:
-   - ValidateRFC1123Name(config.User, "CAPZ_USER")
+   - ValidateRFC1123Name(config.CAPZUser, "CAPZ_USER")
    - Pass/Fail with details
 
 3. Validate DEPLOYMENT_ENV:

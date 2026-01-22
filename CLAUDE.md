@@ -254,7 +254,7 @@ export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
   - **Note**: Tests automatically translate this to `KIND_CLUSTER_NAME` for the deployment script
   - Use this variable for configuring tests; `KIND_CLUSTER_NAME` is set internally
 - `WORKLOAD_CLUSTER_NAME` - ARO workload cluster name (default: `capz-tests-cluster`)
-- `CS_CLUSTER_NAME` - Cluster name prefix used for YAML generation (default: `${CAPZ_USER}-${DEPLOYMENT_ENV}`). The Azure resource group will be named `${CS_CLUSTER_NAME}-resgroup`.
+- `CS_CLUSTER_NAME` - **C**luster **S**ervice cluster name prefix used for YAML generation and Azure resource naming (default: `${CAPZ_USER}-${DEPLOYMENT_ENV}`). The Azure resource group will be named `${CS_CLUSTER_NAME}-resgroup`. This prefix is also used for the ExternalAuth resource ID.
 - `OPENSHIFT_VERSION` - OpenShift version (default: `4.21`)
 - `REGION` - Azure region (default: `uksouth`)
 - `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`)
@@ -476,6 +476,7 @@ Commands will prompt for any required information and guide you through the task
 - `test/README.md` - Detailed test suite documentation
 - `docs/INTEGRATION.md` - Integration patterns with cluster-api-installer
 - `docs/TESTING_GUIDELINES.md` - Go testing best practices and guidelines
+- `docs/API_REVIEW.md` - V1 API/Interface contract review
 - `TEST_COVERAGE.md` - Test coverage analysis and metrics
 
 ### Community Health Files

@@ -62,9 +62,9 @@ type TestConfig struct {
 	ClusterNamePrefix     string // Used as CS_CLUSTER_NAME for YAML generation; resource group becomes ${ClusterNamePrefix}-resgroup
 	OpenShiftVersion      string
 	Region                string
-	AzureSubscription     string
+	AzureSubscriptionName string // Azure subscription name (from AZURE_SUBSCRIPTION_NAME env var)
 	Environment           string
-	User                  string
+	CAPZUser              string // User identifier for CAPZ resources (from CAPZ_USER env var)
 	TestNamespace         string // Namespace for testing resources (default: "default")
 	CAPINamespace         string // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" when USE_K8S=true)
 	CAPZNamespace         string // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" when USE_K8S=true)
@@ -93,9 +93,9 @@ func NewTestConfig() *TestConfig {
 		ClusterNamePrefix:     GetEnvOrDefault("CS_CLUSTER_NAME", fmt.Sprintf("%s-%s", GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser), GetEnvOrDefault("DEPLOYMENT_ENV", DefaultDeploymentEnv))),
 		OpenShiftVersion:      GetEnvOrDefault("OPENSHIFT_VERSION", "4.21"),
 		Region:                GetEnvOrDefault("REGION", "uksouth"),
-		AzureSubscription:     os.Getenv("AZURE_SUBSCRIPTION_NAME"),
+		AzureSubscriptionName: os.Getenv("AZURE_SUBSCRIPTION_NAME"),
 		Environment:           GetEnvOrDefault("DEPLOYMENT_ENV", DefaultDeploymentEnv),
-		User:                  GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser),
+		CAPZUser:              GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser),
 		TestNamespace:         GetEnvOrDefault("TEST_NAMESPACE", "default"),
 		CAPINamespace:         getControllerNamespace("CAPI_NAMESPACE", "capi-system"),
 		CAPZNamespace:         getControllerNamespace("CAPZ_NAMESPACE", "capz-system"),

@@ -471,10 +471,10 @@ func TestCheckDependencies_NamingConstraints(t *testing.T) {
 
 	// Validate domain prefix: ${CAPZ_USER}-${DEPLOYMENT_ENV} ≤ 15 chars
 	t.Run("DomainPrefix", func(t *testing.T) {
-		if err := ValidateDomainPrefix(config.User, config.Environment); err != nil {
+		if err := ValidateDomainPrefix(config.CAPZUser, config.Environment); err != nil {
 			t.Errorf("Domain prefix validation failed:\n%v", err)
 		} else {
-			prefix := GetDomainPrefix(config.User, config.Environment)
+			prefix := GetDomainPrefix(config.CAPZUser, config.Environment)
 			t.Logf("Domain prefix '%s' (%d chars) is valid (max: %d)",
 				prefix, len(prefix), MaxDomainPrefixLength)
 		}
@@ -596,11 +596,11 @@ func TestCheckDependencies_NamingCompliance(t *testing.T) {
 
 	// Validate CAPZ_USER
 	t.Run("CAPZ_USER", func(t *testing.T) {
-		if err := ValidateRFC1123Name(config.User, "CAPZ_USER"); err != nil {
+		if err := ValidateRFC1123Name(config.CAPZUser, "CAPZ_USER"); err != nil {
 			validationErrors = append(validationErrors, err.Error())
 			t.Error(err)
 		} else {
-			t.Logf("CAPZ_USER '%s' is RFC 1123 compliant", config.User)
+			t.Logf("CAPZ_USER '%s' is RFC 1123 compliant", config.CAPZUser)
 		}
 	})
 

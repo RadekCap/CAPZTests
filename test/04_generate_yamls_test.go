@@ -21,12 +21,12 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 
 	// Validate domain prefix length before attempting YAML generation
 	// The domain prefix is derived from USER and DEPLOYMENT_ENV and must not exceed 15 characters
-	if err := ValidateDomainPrefix(config.User, config.Environment); err != nil {
+	if err := ValidateDomainPrefix(config.CAPZUser, config.Environment); err != nil {
 		t.Fatalf("Domain prefix validation failed: %v", err)
 	}
 	t.Logf("Domain prefix validation passed: '%s' (%d chars)",
-		GetDomainPrefix(config.User, config.Environment),
-		len(GetDomainPrefix(config.User, config.Environment)))
+		GetDomainPrefix(config.CAPZUser, config.Environment),
+		len(GetDomainPrefix(config.CAPZUser, config.Environment)))
 
 	genScriptPath := filepath.Join(config.RepoDir, config.GenScriptPath)
 	if !FileExists(genScriptPath) {
@@ -41,14 +41,14 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 
 	// Set environment variables for the generation script
 	SetEnvVar(t, "DEPLOYMENT_ENV", config.Environment)
-	SetEnvVar(t, "USER", config.User)
+	SetEnvVar(t, "USER", config.CAPZUser)
 	SetEnvVar(t, "WORKLOAD_CLUSTER_NAME", config.WorkloadClusterName)
 	SetEnvVar(t, "REGION", config.Region)
 	SetEnvVar(t, "CS_CLUSTER_NAME", config.ClusterNamePrefix)
 	SetEnvVar(t, "OPENSHIFT_VERSION", config.OpenShiftVersion)
 
-	if config.AzureSubscription != "" {
-		SetEnvVar(t, "AZURE_SUBSCRIPTION_NAME", config.AzureSubscription)
+	if config.AzureSubscriptionName != "" {
+		SetEnvVar(t, "AZURE_SUBSCRIPTION_NAME", config.AzureSubscriptionName)
 	}
 
 	// Change to repository directory for script execution

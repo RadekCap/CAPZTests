@@ -30,10 +30,10 @@
 
 3. Set environment variables:
    ├── DEPLOYMENT_ENV=<config.Environment>
-   ├── USER=<config.User>
+   ├── USER=<config.CAPZUser>
    ├── WORKLOAD_CLUSTER_NAME=<config.WorkloadClusterName>
    ├── REGION=<config.Region>
-   └── AZURE_SUBSCRIPTION_NAME=<config.AzureSubscription> (if set)
+   └── AZURE_SUBSCRIPTION_NAME=<config.AzureSubscriptionName> (if set)
 
 4. Change directory:
    └─ os.Chdir(config.RepoDir)
@@ -60,11 +60,11 @@
 
 ```go
 SetEnvVar(t, "DEPLOYMENT_ENV", config.Environment)
-SetEnvVar(t, "USER", config.User)
+SetEnvVar(t, "USER", config.CAPZUser)
 SetEnvVar(t, "WORKLOAD_CLUSTER_NAME", config.WorkloadClusterName)
 SetEnvVar(t, "REGION", config.Region)
-if config.AzureSubscription != "" {
-    SetEnvVar(t, "AZURE_SUBSCRIPTION_NAME", config.AzureSubscription)
+if config.AzureSubscriptionName != "" {
+    SetEnvVar(t, "AZURE_SUBSCRIPTION_NAME", config.AzureSubscriptionName)
 }
 ```
 
