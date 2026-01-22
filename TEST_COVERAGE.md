@@ -200,32 +200,42 @@ The test suite provides end-to-end coverage of the Azure Red Hat OpenShift (ARO)
 
 ## Test Execution Modes
 
-### Full Test Suite
+### Quick Validation (Check Dependencies Only)
 
-Runs complete end-to-end deployment and verification.
+Fast validation of prerequisites without creating Azure resources.
 
 ```bash
 make test
 ```
 
-**Duration**: 30-60 minutes (depending on Azure provisioning time)
-**Requirements**: Full Azure credentials and permissions
+**Duration**: ~30 seconds
+**Requirements**: Local tools and Azure CLI login
+**Coverage**: Tool availability, Azure authentication, configuration validation
+**Use Cases**:
+- Local development validation before pushing
+- CI/CD pipeline quick checks
+- Verifying environment setup
 
 ---
 
-### Quick Validation
+### Full Test Suite
 
-Check dependencies validation without deployment tests.
+Runs complete end-to-end deployment and verification through all 7 phases.
 
 ```bash
-go test -v ./test -run TestCheckDependencies
+make test-all
 ```
 
-**Duration**: < 2 minutes
-**Requirements**: Local tools and Azure CLI login
-**Coverage**: Prerequisites validation only
-
-**Note**: Since `make test-short` was removed, use the Go test command above to run only prerequisite tests. The `make test` target runs the complete test suite.
+**Duration**: 30-60 minutes (depending on Azure provisioning time)
+**Requirements**: Full Azure credentials and permissions
+**Phases Executed**:
+1. Check Dependencies (`_check-dep`) - Tool and auth validation
+2. Setup (`_setup`) - Repository cloning
+3. Cluster (`_cluster`) - Kind management cluster deployment
+4. Generate YAMLs (`_generate-yamls`) - Infrastructure YAML generation
+5. Deploy CRs (`_deploy-crs`) - Custom Resource deployment
+6. Verification (`_verify`) - Cluster validation
+7. Delete (`_delete`) - Cleanup (optional)
 
 ---
 
@@ -233,14 +243,20 @@ go test -v ./test -run TestCheckDependencies
 
 Run individual test phases for targeted validation.
 
+**Makefile Targets** (internal, used by `test-all`):
 ```bash
-# Check dependencies only (fast, no Azure resources)
-make test
+make _check-dep      # Check dependencies
+make _setup          # Repository setup
+make _cluster        # Kind cluster deployment
+make _generate-yamls # YAML generation
+make _deploy-crs     # CR deployment
+make _verify         # Cluster verification
+make _delete         # Cluster deletion
+```
 
-# Run all test phases sequentially
-make test-all
-
-# Run specific test phase using Go test directly
+**Go Test Commands** (for running specific test functions):
+```bash
+go test -v ./test -run TestCheckDependencies
 go test -v ./test -run TestSetup
 go test -v ./test -run TestKindCluster
 go test -v ./test -run TestInfrastructure
