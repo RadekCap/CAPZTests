@@ -646,3 +646,116 @@ func TestCheckDependencies_NamingCompliance(t *testing.T) {
 		}
 	})
 }
+
+// TestCheckDependencies_AzureRegion validates that the configured Azure region is valid.
+// This catches invalid region configurations early before deployment begins.
+func TestCheckDependencies_AzureRegion(t *testing.T) {
+	// Skip in CI environments where Azure may not be available
+	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Skip("Skipping Azure region validation in CI environment")
+		return
+	}
+
+	config := NewTestConfig()
+
+	if err := ValidateAzureRegion(t, config.Region); err != nil {
+		t.Errorf("Azure region validation failed:\n%v", err)
+	} else {
+		t.Logf("Azure region '%s' is valid", config.Region)
+	}
+}
+
+// TestCheckDependencies_AzureSubscriptionAccess validates that the Azure subscription is accessible.
+// This ensures the subscription exists and the current credentials have access before deployment.
+func TestCheckDependencies_AzureSubscriptionAccess(t *testing.T) {
+	// Skip in CI environments where Azure credentials may not be available
+	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Skip("Skipping Azure subscription access validation in CI environment")
+		return
+	}
+
+	// Get subscription ID from environment or extract from Azure CLI
+	subscriptionID := os.Getenv("AZURE_SUBSCRIPTION_ID")
+	if subscriptionID == "" {
+		// Try to extract from Azure CLI
+		if CommandExists("az") {
+			output, err := RunCommandQuiet(t, "az", "account", "show", "--query", "id", "-o", "tsv")
+			if err == nil {
+				subscriptionID = strings.TrimSpace(output)
+			}
+		}
+	}
+
+	if subscriptionID == "" {
+		t.Skip("No Azure subscription ID available, skipping access validation")
+		return
+	}
+
+	if err := ValidateAzureSubscriptionAccess(t, subscriptionID); err != nil {
+		t.Errorf("Azure subscription access validation failed:\n%v", err)
+	} else {
+		// Mask the subscription ID for display (show first 8 and last 4 chars)
+		maskedID := subscriptionID
+		if len(subscriptionID) > 12 {
+			maskedID = subscriptionID[:8] + "..." + subscriptionID[len(subscriptionID)-4:]
+		}
+		t.Logf("Azure subscription '%s' is accessible and enabled", maskedID)
+	}
+}
+
+// TestCheckDependencies_TimeoutConfiguration validates that timeout configurations are reasonable.
+// This catches potentially problematic timeout values (too short or too long) before deployment.
+func TestCheckDependencies_TimeoutConfiguration(t *testing.T) {
+	config := NewTestConfig()
+
+	t.Run("DeploymentTimeout", func(t *testing.T) {
+		if err := ValidateDeploymentTimeout(config.DeploymentTimeout); err != nil {
+			// Non-fatal warning - deployment will just timeout if too short
+			t.Logf("Warning: %v", err)
+		} else {
+			t.Logf("DEPLOYMENT_TIMEOUT '%v' is within acceptable range (%v - %v)",
+				config.DeploymentTimeout, MinDeploymentTimeout, MaxDeploymentTimeout)
+		}
+	})
+
+	t.Run("ASOControllerTimeout", func(t *testing.T) {
+		if err := ValidateASOControllerTimeout(config.ASOControllerTimeout); err != nil {
+			// Non-fatal warning
+			t.Logf("Warning: %v", err)
+		} else {
+			t.Logf("ASO_CONTROLLER_TIMEOUT '%v' is within acceptable range (%v - %v)",
+				config.ASOControllerTimeout, MinASOControllerTimeout, MaxASOControllerTimeout)
+		}
+	})
+}
+
+// TestCheckDependencies_ComprehensiveValidation performs a comprehensive configuration validation.
+// This test runs all validation checks and provides a summary of the configuration status.
+// It's designed to give users a complete picture of their configuration at the start of testing.
+func TestCheckDependencies_ComprehensiveValidation(t *testing.T) {
+	config := NewTestConfig()
+
+	// Run all validations
+	results := ValidateAllConfigurations(t, config)
+
+	// Print formatted results to TTY for immediate visibility
+	formattedResults := FormatValidationResults(results)
+	PrintToTTY("%s", formattedResults)
+
+	// Count critical errors
+	var criticalErrors int
+	for _, r := range results {
+		if !r.IsValid && r.IsCritical {
+			criticalErrors++
+		}
+	}
+
+	// Fail the test if there are critical errors
+	if criticalErrors > 0 {
+		t.Errorf("Configuration validation failed with %d critical error(s).\n"+
+			"Review the validation results above and fix the issues before proceeding.\n"+
+			"Deployment will fail if these issues are not resolved.", criticalErrors)
+	} else {
+		t.Log("All configuration validations passed")
+	}
+}

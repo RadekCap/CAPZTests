@@ -2125,3 +2125,422 @@ func ReportDeletionProgress(t *testing.T, iteration int, elapsed, remaining time
 	t.Logf("Deletion progress: cluster=%v, arocp=%d, mp=%d, azureRG=%v",
 		status.ClusterExists, status.AROControlPlaneCount, status.MachinePoolCount, status.AzureRGExists)
 }
+
+// ============================================================================
+// Configuration Validation Functions
+// ============================================================================
+//
+// These functions provide fail-fast validation for configuration values,
+// ensuring issues are caught early (in phase 1) rather than during deployment.
+
+// ValidateAzureSubscriptionAccess validates that the Azure subscription is accessible.
+// Returns nil if the subscription can be accessed, or an error with remediation guidance.
+// This validation ensures the subscription exists and the current credentials have access.
+func ValidateAzureSubscriptionAccess(t *testing.T, subscriptionID string) error {
+	t.Helper()
+
+	if subscriptionID == "" {
+		return fmt.Errorf(
+			"AZURE_SUBSCRIPTION_ID is empty\n" +
+				"  The subscription ID is required to access Azure resources.\n\n" +
+				"  To fix this:\n" +
+				"    Option 1: export AZURE_SUBSCRIPTION_ID=<your-subscription-id>\n" +
+				"    Option 2: export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)\n" +
+				"    Option 3: Run 'az login' and let the test auto-extract credentials")
+	}
+
+	// Check if az CLI is available
+	if !CommandExists("az") {
+		// Can't validate subscription without az CLI, skip validation
+		t.Log("Azure CLI not available, skipping subscription access validation")
+		return nil
+	}
+
+	// Try to access the subscription
+	output, err := RunCommandQuiet(t, "az", "account", "show", "--subscription", subscriptionID, "--query", "state", "-o", "tsv")
+	if err != nil {
+		// Detect specific Azure error patterns
+		if azureErr := DetectAzureError(output + err.Error()); azureErr != nil {
+			return fmt.Errorf(
+				"Azure subscription '%s' is not accessible\n"+
+					"  %s\n\n"+
+					"  Remediation:\n%s",
+				subscriptionID, azureErr.Message, formatRemediationSteps(azureErr.Remediation))
+		}
+
+		return fmt.Errorf(
+			"Azure subscription '%s' is not accessible\n"+
+				"  Error: %v\n\n"+
+				"  To fix this:\n"+
+				"    1. Verify the subscription ID is correct:\n"+
+				"       az account list -o table\n"+
+				"    2. Ensure you have access to the subscription:\n"+
+				"       az account set --subscription %s\n"+
+				"    3. Re-authenticate if needed:\n"+
+				"       az login",
+			subscriptionID, err, subscriptionID)
+	}
+
+	state := strings.TrimSpace(output)
+	if state != "Enabled" {
+		return fmt.Errorf(
+			"Azure subscription '%s' is in state '%s' (expected: Enabled)\n"+
+				"  The subscription must be in 'Enabled' state to create resources.\n\n"+
+				"  To fix this:\n"+
+				"    1. Check subscription status in Azure Portal\n"+
+				"    2. Ensure billing is up to date\n"+
+				"    3. Contact your Azure administrator if the subscription is disabled",
+			subscriptionID, state)
+	}
+
+	return nil
+}
+
+// formatRemediationSteps formats a slice of remediation steps as indented lines.
+func formatRemediationSteps(steps []string) string {
+	var result strings.Builder
+	for _, step := range steps {
+		result.WriteString(fmt.Sprintf("    %s\n", step))
+	}
+	return result.String()
+}
+
+// azureRegions contains the list of valid Azure regions.
+// This is a subset of commonly used regions; the full list is validated via Azure CLI.
+var azureRegions = map[string]bool{
+	// Americas
+	"eastus": true, "eastus2": true, "westus": true, "westus2": true, "westus3": true,
+	"centralus": true, "northcentralus": true, "southcentralus": true, "westcentralus": true,
+	"canadacentral": true, "canadaeast": true,
+	"brazilsouth": true, "brazilsoutheast": true,
+	// Europe
+	"northeurope": true, "westeurope": true,
+	"uksouth": true, "ukwest": true,
+	"francecentral": true, "francesouth": true,
+	"germanywestcentral": true, "germanynorth": true,
+	"switzerlandnorth": true, "switzerlandwest": true,
+	"norwayeast": true, "norwaywest": true,
+	"swedencentral": true, "swedensouth": true,
+	"polandcentral": true,
+	// Asia Pacific
+	"eastasia": true, "southeastasia": true,
+	"australiaeast": true, "australiasoutheast": true, "australiacentral": true,
+	"japaneast": true, "japanwest": true,
+	"koreacentral": true, "koreasouth": true,
+	"centralindia": true, "southindia": true, "westindia": true,
+	// Middle East & Africa
+	"uaenorth": true, "uaecentral": true,
+	"southafricanorth": true, "southafricawest": true,
+	"qatarcentral":  true,
+	"israelcentral": true,
+}
+
+// ValidateAzureRegion validates that the specified Azure region is valid.
+// Returns nil if the region is valid, or an error with remediation guidance.
+func ValidateAzureRegion(t *testing.T, region string) error {
+	t.Helper()
+
+	if region == "" {
+		return fmt.Errorf(
+			"REGION is empty\n" +
+				"  An Azure region is required for resource deployment.\n\n" +
+				"  To fix this:\n" +
+				"    export REGION=<azure-region>\n\n" +
+				"  Common regions: eastus, westus2, uksouth, westeurope, eastasia")
+	}
+
+	// Normalize to lowercase for comparison
+	normalizedRegion := strings.ToLower(region)
+
+	// Quick check against known regions
+	if azureRegions[normalizedRegion] {
+		return nil
+	}
+
+	// If not in known list, validate via Azure CLI if available
+	if CommandExists("az") {
+		output, err := RunCommandQuiet(t, "az", "account", "list-locations", "--query", "[?name=='"+normalizedRegion+"'].name", "-o", "tsv")
+		if err == nil && strings.TrimSpace(output) == normalizedRegion {
+			return nil
+		}
+
+		// Get list of available regions for error message
+		regionsOutput, _ := RunCommandQuiet(t, "az", "account", "list-locations", "--query", "[].name", "-o", "tsv")
+		availableRegions := strings.Split(strings.TrimSpace(regionsOutput), "\n")
+
+		// Find similar regions for suggestions
+		suggestions := findSimilarRegions(normalizedRegion, availableRegions)
+		suggestionText := ""
+		if len(suggestions) > 0 {
+			suggestionText = fmt.Sprintf("\n  Did you mean: %s?", strings.Join(suggestions, ", "))
+		}
+
+		return fmt.Errorf(
+			"REGION '%s' is not a valid Azure region\n"+
+				"  The specified region was not found in available Azure locations.%s\n\n"+
+				"  To fix this:\n"+
+				"    1. List available regions: az account list-locations --query '[].name' -o tsv\n"+
+				"    2. Set a valid region: export REGION=<valid-region>\n\n"+
+				"  Common regions: eastus, westus2, uksouth, westeurope, eastasia",
+			region, suggestionText)
+	}
+
+	// Can't validate via CLI, check against known list
+	return fmt.Errorf(
+		"REGION '%s' is not a recognized Azure region\n"+
+			"  The region was not found in the list of known Azure regions.\n\n"+
+			"  To fix this:\n"+
+			"    1. Verify the region name (case-sensitive, no spaces)\n"+
+			"    2. List available regions: az account list-locations --query '[].name' -o tsv\n"+
+			"    3. Set a valid region: export REGION=<valid-region>\n\n"+
+			"  Common regions: eastus, westus2, uksouth, westeurope, eastasia",
+		region)
+}
+
+// findSimilarRegions finds regions that are similar to the given input.
+// Used to provide "did you mean?" suggestions in error messages.
+func findSimilarRegions(input string, regions []string) []string {
+	var similar []string
+	for _, region := range regions {
+		// Simple substring matching
+		if strings.Contains(region, input) || strings.Contains(input, region) {
+			similar = append(similar, region)
+		}
+	}
+	// Limit to 3 suggestions
+	if len(similar) > 3 {
+		similar = similar[:3]
+	}
+	return similar
+}
+
+// Timeout validation constants
+const (
+	// MinDeploymentTimeout is the minimum allowed deployment timeout.
+	// Deployments typically take at least 15 minutes, so shorter timeouts are likely errors.
+	MinDeploymentTimeout = 15 * time.Minute
+
+	// MaxDeploymentTimeout is the maximum allowed deployment timeout.
+	// Timeouts over 3 hours are likely configuration errors.
+	MaxDeploymentTimeout = 3 * time.Hour
+
+	// MinASOControllerTimeout is the minimum allowed ASO controller timeout.
+	MinASOControllerTimeout = 2 * time.Minute
+
+	// MaxASOControllerTimeout is the maximum allowed ASO controller timeout.
+	MaxASOControllerTimeout = 30 * time.Minute
+)
+
+// ValidateTimeout validates that a timeout duration is within reasonable bounds.
+// Returns nil if the timeout is valid, or an error with remediation guidance.
+//
+// Parameters:
+//   - name: The environment variable name (for error messages)
+//   - timeout: The timeout duration to validate
+//   - min: Minimum allowed timeout
+//   - max: Maximum allowed timeout
+func ValidateTimeout(name string, timeout, min, max time.Duration) error {
+	if timeout < min {
+		return fmt.Errorf(
+			"%s '%v' is too short (minimum: %v)\n"+
+				"  Timeout values that are too short may cause premature failures.\n\n"+
+				"  To fix this:\n"+
+				"    export %s=%v\n\n"+
+				"  The timeout must be at least %v to allow sufficient time for operations.",
+			name, timeout, min, name, min, min)
+	}
+
+	if timeout > max {
+		return fmt.Errorf(
+			"%s '%v' is too long (maximum: %v)\n"+
+				"  Extremely long timeouts may indicate a configuration error.\n\n"+
+				"  To fix this:\n"+
+				"    export %s=%v\n\n"+
+				"  If you need a longer timeout, consider investigating why operations are taking so long.",
+			name, timeout, max, name, max)
+	}
+
+	return nil
+}
+
+// ValidateDeploymentTimeout validates the DEPLOYMENT_TIMEOUT configuration.
+// Returns nil if the timeout is within acceptable bounds, or an error with remediation guidance.
+func ValidateDeploymentTimeout(timeout time.Duration) error {
+	return ValidateTimeout("DEPLOYMENT_TIMEOUT", timeout, MinDeploymentTimeout, MaxDeploymentTimeout)
+}
+
+// ValidateASOControllerTimeout validates the ASO_CONTROLLER_TIMEOUT configuration.
+// Returns nil if the timeout is within acceptable bounds, or an error with remediation guidance.
+func ValidateASOControllerTimeout(timeout time.Duration) error {
+	return ValidateTimeout("ASO_CONTROLLER_TIMEOUT", timeout, MinASOControllerTimeout, MaxASOControllerTimeout)
+}
+
+// ConfigValidationResult holds the results of a configuration validation.
+type ConfigValidationResult struct {
+	Variable   string // Environment variable name
+	Value      string // Current value (may be masked for secrets)
+	IsValid    bool   // Whether the validation passed
+	Error      error  // Validation error (nil if valid)
+	IsCritical bool   // Whether this is a critical validation (blocks deployment)
+	SkipReason string // Reason if validation was skipped
+}
+
+// ValidateAllConfigurations performs comprehensive configuration validation.
+// This is designed to be called once during phase 1 (Check Dependencies) to catch
+// all configuration issues early, before any Azure resources are created.
+//
+// Returns a slice of ConfigValidationResult with details about each validation.
+func ValidateAllConfigurations(t *testing.T, config *TestConfig) []ConfigValidationResult {
+	t.Helper()
+
+	var results []ConfigValidationResult
+
+	// Validate RFC 1123 naming compliance
+	for _, item := range []struct {
+		name  string
+		value string
+	}{
+		{"CAPZ_USER", config.CAPZUser},
+		{"DEPLOYMENT_ENV", config.Environment},
+		{"CS_CLUSTER_NAME", config.ClusterNamePrefix},
+		{"TEST_NAMESPACE", config.TestNamespace},
+	} {
+		result := ConfigValidationResult{
+			Variable:   item.name,
+			Value:      item.value,
+			IsCritical: true,
+		}
+		if err := ValidateRFC1123Name(item.value, item.name); err != nil {
+			result.IsValid = false
+			result.Error = err
+		} else {
+			result.IsValid = true
+		}
+		results = append(results, result)
+	}
+
+	// Validate domain prefix length
+	domainPrefix := GetDomainPrefix(config.CAPZUser, config.Environment)
+	result := ConfigValidationResult{
+		Variable:   "Domain Prefix (CAPZ_USER-DEPLOYMENT_ENV)",
+		Value:      domainPrefix,
+		IsCritical: true,
+	}
+	if err := ValidateDomainPrefix(config.CAPZUser, config.Environment); err != nil {
+		result.IsValid = false
+		result.Error = err
+	} else {
+		result.IsValid = true
+	}
+	results = append(results, result)
+
+	// Validate ExternalAuth ID length
+	externalAuthID := GetExternalAuthID(config.ClusterNamePrefix)
+	result = ConfigValidationResult{
+		Variable:   "ExternalAuth ID (CS_CLUSTER_NAME-ea)",
+		Value:      externalAuthID,
+		IsCritical: true,
+	}
+	if err := ValidateExternalAuthID(config.ClusterNamePrefix); err != nil {
+		result.IsValid = false
+		result.Error = err
+	} else {
+		result.IsValid = true
+	}
+	results = append(results, result)
+
+	// Validate Azure region
+	result = ConfigValidationResult{
+		Variable:   "REGION",
+		Value:      config.Region,
+		IsCritical: true,
+	}
+	if err := ValidateAzureRegion(t, config.Region); err != nil {
+		result.IsValid = false
+		result.Error = err
+	} else {
+		result.IsValid = true
+	}
+	results = append(results, result)
+
+	// Validate timeout values
+	result = ConfigValidationResult{
+		Variable:   "DEPLOYMENT_TIMEOUT",
+		Value:      config.DeploymentTimeout.String(),
+		IsCritical: false, // Not critical, deployment will just timeout
+	}
+	if err := ValidateDeploymentTimeout(config.DeploymentTimeout); err != nil {
+		result.IsValid = false
+		result.Error = err
+	} else {
+		result.IsValid = true
+	}
+	results = append(results, result)
+
+	result = ConfigValidationResult{
+		Variable:   "ASO_CONTROLLER_TIMEOUT",
+		Value:      config.ASOControllerTimeout.String(),
+		IsCritical: false,
+	}
+	if err := ValidateASOControllerTimeout(config.ASOControllerTimeout); err != nil {
+		result.IsValid = false
+		result.Error = err
+	} else {
+		result.IsValid = true
+	}
+	results = append(results, result)
+
+	return results
+}
+
+// FormatValidationResults formats validation results for display.
+// Returns a formatted string suitable for logging or printing to TTY.
+func FormatValidationResults(results []ConfigValidationResult) string {
+	var sb strings.Builder
+
+	sb.WriteString("\n=== CONFIGURATION VALIDATION RESULTS ===\n\n")
+
+	var criticalErrors, warnings int
+
+	for _, r := range results {
+		icon := "✅"
+		if !r.IsValid {
+			if r.IsCritical {
+				icon = "❌"
+				criticalErrors++
+			} else {
+				icon = "⚠️"
+				warnings++
+			}
+		} else if r.SkipReason != "" {
+			icon = "⏭️"
+		}
+
+		sb.WriteString(fmt.Sprintf("%s %s: %s\n", icon, r.Variable, r.Value))
+
+		if r.SkipReason != "" {
+			sb.WriteString(fmt.Sprintf("   Skipped: %s\n", r.SkipReason))
+		}
+
+		if r.Error != nil {
+			// Indent error message
+			errLines := strings.Split(r.Error.Error(), "\n")
+			for _, line := range errLines {
+				sb.WriteString(fmt.Sprintf("   %s\n", line))
+			}
+		}
+	}
+
+	sb.WriteString("\n─────────────────────────────────────────\n")
+	if criticalErrors > 0 {
+		sb.WriteString(fmt.Sprintf("❌ %d critical error(s) found - deployment will fail!\n", criticalErrors))
+	}
+	if warnings > 0 {
+		sb.WriteString(fmt.Sprintf("⚠️  %d warning(s) found - review recommended\n", warnings))
+	}
+	if criticalErrors == 0 && warnings == 0 {
+		sb.WriteString("✅ All configuration validations passed\n")
+	}
+
+	return sb.String()
+}
