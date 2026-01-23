@@ -21,7 +21,7 @@ This document provides a comprehensive cross-platform compatibility review of th
 | Script | Shebang | Shell Required |
 |--------|---------|----------------|
 | `scripts/cleanup-azure-resources.sh` | `#!/usr/bin/env bash` | Bash 4.0+ |
-| `scripts/generate-summary.sh` | `#!/usr/bin/env bash` | Bash 3.2+ |
+| `scripts/generate-summary.sh` | `#!/usr/bin/env bash` | Bash 4.0+ |
 
 ### Bash Features Used
 
@@ -37,12 +37,12 @@ The shell scripts use the following Bash-specific features:
 
 ### macOS Compatibility Notes
 
-macOS ships with Bash 3.2 (due to GPLv3 licensing). The `generate-summary.sh` script is compatible with Bash 3.2, but `cleanup-azure-resources.sh` requires Bash 4.0+ due to process substitution patterns. Users should install newer Bash via Homebrew for full compatibility:
+macOS ships with Bash 3.2 (due to GPLv3 licensing). Both shell scripts require Bash 4.0+ due to process substitution patterns (`< <(...)`). Users must install newer Bash via Homebrew for compatibility:
 
 ```bash
 # Check your current Bash version
 bash --version
-# macOS default is typically 3.2.x - you need 4.0+ for cleanup-azure-resources.sh
+# macOS default is typically 3.2.x - you need 4.0+ for the shell scripts
 
 # Install newer Bash on macOS
 brew install bash
@@ -244,7 +244,7 @@ For local development on macOS or Linux, the test suite supports the same functi
 
 The test suite can run in container environments with the following requirements:
 
-- Bash 3.2+ available
+- Bash 4.0+ available (for shell scripts)
 - All required tools installed
 - Docker-in-Docker or podman support for Kind
 
@@ -263,7 +263,7 @@ Native Windows (without WSL2) is not supported due to:
 
 ### macOS Bash Version
 
-macOS ships with Bash 3.2. While compatible, some newer Bash features are unavailable. The scripts are written to be compatible with Bash 3.2.
+macOS ships with Bash 3.2. The shell scripts require Bash 4.0+ due to process substitution patterns. Install newer Bash via Homebrew (`brew install bash`) for compatibility.
 
 ### ARM64 Linux
 
