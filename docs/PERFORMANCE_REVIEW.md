@@ -51,7 +51,7 @@ The ARO-CAPZ test suite demonstrates **good overall performance design** with ap
 
 The codebase correctly implements exponential backoff in these areas:
 
-#### 1. WaitForClusterHealthy (`helpers.go:834-884`)
+#### 1. WaitForClusterHealthy (`helpers.go:834-897`)
 ```go
 baseDelay := 5 * time.Second
 // ...
@@ -62,7 +62,7 @@ if delay > 30*time.Second {
 ```
 **Status:** ✅ Correctly capped at 30 seconds
 
-#### 2. ApplyWithRetry (`helpers.go:887-949`)
+#### 2. ApplyWithRetry (`helpers.go:898-952`)
 ```go
 baseDelay := DefaultApplyRetryDelay // 10s
 // ...
@@ -176,16 +176,16 @@ All prerequisite checks are lightweight:
 
 ### Current Defaults
 
-| Timeout | Default | Min Recommended | Max Recommended | Status |
-|---------|---------|-----------------|-----------------|--------|
-| `DEPLOYMENT_TIMEOUT` | 60m | 30m | 120m | ✅ Reasonable |
-| `ASO_CONTROLLER_TIMEOUT` | 10m | 5m | 20m | ✅ Reasonable |
+| Timeout | Default | Min Allowed | Max Allowed | Status |
+|---------|---------|-------------|-------------|--------|
+| `DEPLOYMENT_TIMEOUT` | 60m | 15m | 3h | ✅ Reasonable |
+| `ASO_CONTROLLER_TIMEOUT` | 10m | 2m | 30m | ✅ Reasonable |
 
 ### Validation in Check Dependencies
 
 The test suite validates timeout configuration in phase 1:
-- `ValidateDeploymentTimeout()` - warns if < 30m or > 120m
-- `ValidateASOControllerTimeout()` - warns if < 5m or > 20m
+- `ValidateDeploymentTimeout()` - errors if < 15m or > 3h
+- `ValidateASOControllerTimeout()` - errors if < 2m or > 30m
 
 ### Timeout Error Messages
 
