@@ -125,8 +125,8 @@ if err := os.WriteFile(kubeconfigPath, decoded, 0600); err != nil {
 **Security Workflows**:
 | Workflow | Schedule | Purpose |
 |----------|----------|---------|
-| security-gosec.yml | Daily 2:30 AM UTC | Static code analysis |
-| security-govulncheck.yml | Daily 2:00 AM UTC | Go vulnerability database |
+| security-gosec.yml | Daily 2:00 AM UTC | Static code analysis |
+| security-govulncheck.yml | Daily 2:30 AM UTC | Go vulnerability database |
 | security-nancy.yml | Daily 3:30 AM UTC | Sonatype OSS Index |
 | security-trivy.yml | Daily 3:00 AM UTC | Comprehensive scanning |
 

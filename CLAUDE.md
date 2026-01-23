@@ -510,6 +510,7 @@ Commands will prompt for any required information and guide you through the task
 - `docs/CROSS_PLATFORM.md` - Cross-platform compatibility guide (OS support, shell compatibility, installation)
 - `docs/API_REVIEW.md` - V1 API/Interface contract review
 - `docs/PERFORMANCE_REVIEW.md` - V1 Performance review and optimization analysis
+- `docs/SECURITY_REVIEW.md` - V1 Security review and vulnerability assessment
 - `TEST_COVERAGE.md` - Test coverage analysis and metrics
 
 ### Community Health Files
