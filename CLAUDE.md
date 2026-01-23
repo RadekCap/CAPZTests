@@ -394,7 +394,6 @@ The `/sync-main` Claude Code command helps keep your branch updated with proper 
 ## Known Issues
 
 - `test/start_test.go` contains trivial test with unreachable code
-- Command injection vulnerability in `06_verification_test.go:68` (base64 decode)
 
 These are tracked issues and should be fixed in separate PRs when addressed.
 
