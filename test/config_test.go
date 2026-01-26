@@ -81,10 +81,10 @@ func TestGetDefaultRepoDir_PathFormat(t *testing.T) {
 func TestParseDeploymentTimeout_Default(t *testing.T) {
 	// Ensure DEPLOYMENT_TIMEOUT is not set
 	originalValue := os.Getenv("DEPLOYMENT_TIMEOUT")
-	os.Unsetenv("DEPLOYMENT_TIMEOUT")
+	_ = os.Unsetenv("DEPLOYMENT_TIMEOUT")
 	defer func() {
 		if originalValue != "" {
-			os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
+			_ = os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
 		}
 	}()
 
@@ -109,15 +109,15 @@ func TestParseDeploymentTimeout_ValidDuration(t *testing.T) {
 	originalValue := os.Getenv("DEPLOYMENT_TIMEOUT")
 	defer func() {
 		if originalValue != "" {
-			os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
+			_ = os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
 		} else {
-			os.Unsetenv("DEPLOYMENT_TIMEOUT")
+			_ = os.Unsetenv("DEPLOYMENT_TIMEOUT")
 		}
 	}()
 
 	for _, tc := range testCases {
 		t.Run(tc.input, func(t *testing.T) {
-			os.Setenv("DEPLOYMENT_TIMEOUT", tc.input)
+			_ = os.Setenv("DEPLOYMENT_TIMEOUT", tc.input)
 			timeout := parseDeploymentTimeout()
 			if timeout != tc.expected {
 				t.Errorf("For input '%s', expected %v, got %v", tc.input, tc.expected, timeout)
@@ -130,9 +130,9 @@ func TestParseDeploymentTimeout_InvalidDuration(t *testing.T) {
 	originalValue := os.Getenv("DEPLOYMENT_TIMEOUT")
 	defer func() {
 		if originalValue != "" {
-			os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
+			_ = os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
 		} else {
-			os.Unsetenv("DEPLOYMENT_TIMEOUT")
+			_ = os.Unsetenv("DEPLOYMENT_TIMEOUT")
 		}
 	}()
 
@@ -141,7 +141,7 @@ func TestParseDeploymentTimeout_InvalidDuration(t *testing.T) {
 	invalidValues := []string{"invalid", "abc", "45", "1x"}
 	for _, val := range invalidValues {
 		t.Run(val, func(t *testing.T) {
-			os.Setenv("DEPLOYMENT_TIMEOUT", val)
+			_ = os.Setenv("DEPLOYMENT_TIMEOUT", val)
 			timeout := parseDeploymentTimeout()
 			if timeout != DefaultDeploymentTimeout {
 				t.Errorf("For invalid input '%s', expected default %v, got %v", val, DefaultDeploymentTimeout, timeout)
