@@ -153,7 +153,7 @@ func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string,
 		}()
 	}
 
-	fmt.Fprintf(tty, "Running (streaming): %s\n", cmdStr)
+	_, _ = fmt.Fprintf(tty, "Running (streaming): %s\n", cmdStr)
 	t.Logf("Executing command (streaming): %s", cmdStr)
 
 	cmd := exec.Command(name, args...)
@@ -304,8 +304,8 @@ func PrintTestHeader(t *testing.T, testName, description string) {
 	}
 
 	// Print to terminal
-	fmt.Fprintf(tty, "\n=== RUN: %s ===\n", testName)
-	fmt.Fprintf(tty, "    %s\n\n", description)
+	_, _ = fmt.Fprintf(tty, "\n=== RUN: %s ===\n", testName)
+	_, _ = fmt.Fprintf(tty, "    %s\n\n", description)
 
 	// Also log to test output
 	t.Logf("=== RUN: %s ===", testName)
@@ -2162,14 +2162,14 @@ func ValidateAzureSubscriptionAccess(t *testing.T, subscriptionID string) error 
 		// Detect specific Azure error patterns
 		if azureErr := DetectAzureError(output + err.Error()); azureErr != nil {
 			return fmt.Errorf(
-				"Azure subscription '%s' is not accessible\n"+
+				"azure subscription '%s' is not accessible\n"+
 					"  %s\n\n"+
 					"  Remediation:\n%s",
 				subscriptionID, azureErr.Message, formatRemediationSteps(azureErr.Remediation))
 		}
 
 		return fmt.Errorf(
-			"Azure subscription '%s' is not accessible\n"+
+			"azure subscription '%s' is not accessible\n"+
 				"  Error: %v\n\n"+
 				"  To fix this:\n"+
 				"    1. Verify the subscription ID is correct:\n"+
@@ -2184,7 +2184,7 @@ func ValidateAzureSubscriptionAccess(t *testing.T, subscriptionID string) error 
 	state := strings.TrimSpace(output)
 	if state != "Enabled" {
 		return fmt.Errorf(
-			"Azure subscription '%s' is in state '%s' (expected: Enabled)\n"+
+			"azure subscription '%s' is in state '%s' (expected: Enabled)\n"+
 				"  The subscription must be in 'Enabled' state to create resources.\n\n"+
 				"  To fix this:\n"+
 				"    1. Check subscription status in Azure Portal\n"+
@@ -2343,20 +2343,20 @@ func ValidateTimeout(name string, timeout, min, max time.Duration) error {
 	if timeout < min {
 		return fmt.Errorf(
 			"%s '%v' is too short (minimum: %v)\n"+
-				"  Timeout values that are too short may cause premature failures.\n\n"+
+				"  Timeout values that are too short may cause premature failures\n\n"+
 				"  To fix this:\n"+
 				"    export %s=%v\n\n"+
-				"  The timeout must be at least %v to allow sufficient time for operations.",
+				"  The timeout must be at least %v to allow sufficient time for operations",
 			name, timeout, min, name, min, min)
 	}
 
 	if timeout > max {
 		return fmt.Errorf(
 			"%s '%v' is too long (maximum: %v)\n"+
-				"  Extremely long timeouts may indicate a configuration error.\n\n"+
+				"  Extremely long timeouts may indicate a configuration error\n\n"+
 				"  To fix this:\n"+
 				"    export %s=%v\n\n"+
-				"  If you need a longer timeout, consider investigating why operations are taking so long.",
+				"  If you need a longer timeout, consider investigating why operations are taking so long",
 			name, timeout, max, name, max)
 	}
 

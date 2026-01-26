@@ -286,7 +286,7 @@ func TestCheckDependencies_AzureEnvironment(t *testing.T) {
 		}
 
 		// Auto-set the environment variable for subsequent tests
-		os.Setenv("AZURE_TENANT_ID", tenantID)
+		_ = os.Setenv("AZURE_TENANT_ID", tenantID)
 		t.Logf("AZURE_TENANT_ID auto-extracted from Azure CLI: %s...%s", tenantID[:8], tenantID[len(tenantID)-4:])
 	})
 
@@ -331,7 +331,7 @@ func TestCheckDependencies_AzureEnvironment(t *testing.T) {
 		}
 
 		// Auto-set the environment variable for subsequent tests
-		os.Setenv("AZURE_SUBSCRIPTION_ID", subID)
+		_ = os.Setenv("AZURE_SUBSCRIPTION_ID", subID)
 		t.Logf("AZURE_SUBSCRIPTION_ID auto-extracted from Azure CLI: %s...%s", subID[:8], subID[len(subID)-4:])
 	})
 

@@ -81,10 +81,10 @@ func TestGetDefaultRepoDir_PathFormat(t *testing.T) {
 func TestParseDeploymentTimeout_Default(t *testing.T) {
 	// Ensure DEPLOYMENT_TIMEOUT is not set
 	originalValue := os.Getenv("DEPLOYMENT_TIMEOUT")
-	os.Unsetenv("DEPLOYMENT_TIMEOUT")
+	_ = os.Unsetenv("DEPLOYMENT_TIMEOUT")
 	defer func() {
 		if originalValue != "" {
-			os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
+			_ = os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
 		}
 	}()
 
@@ -109,9 +109,9 @@ func TestParseDeploymentTimeout_ValidDuration(t *testing.T) {
 	originalValue := os.Getenv("DEPLOYMENT_TIMEOUT")
 	defer func() {
 		if originalValue != "" {
-			os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
+			_ = os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
 		} else {
-			os.Unsetenv("DEPLOYMENT_TIMEOUT")
+			_ = os.Unsetenv("DEPLOYMENT_TIMEOUT")
 		}
 	}()
 
@@ -130,9 +130,9 @@ func TestParseDeploymentTimeout_InvalidDuration(t *testing.T) {
 	originalValue := os.Getenv("DEPLOYMENT_TIMEOUT")
 	defer func() {
 		if originalValue != "" {
-			os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
+			_ = os.Setenv("DEPLOYMENT_TIMEOUT", originalValue)
 		} else {
-			os.Unsetenv("DEPLOYMENT_TIMEOUT")
+			_ = os.Unsetenv("DEPLOYMENT_TIMEOUT")
 		}
 	}()
 
