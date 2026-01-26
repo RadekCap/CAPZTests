@@ -2133,26 +2133,26 @@ func TestHasServicePrincipalCredentials(t *testing.T) {
 
 			// Restore original values after test
 			t.Cleanup(func() {
-				os.Setenv("AZURE_CLIENT_ID", origClientID)
-				os.Setenv("AZURE_CLIENT_SECRET", origClientSecret)
-				os.Setenv("AZURE_TENANT_ID", origTenantID)
+				_ = os.Setenv("AZURE_CLIENT_ID", origClientID)
+				_ = os.Setenv("AZURE_CLIENT_SECRET", origClientSecret)
+				_ = os.Setenv("AZURE_TENANT_ID", origTenantID)
 			})
 
 			// Set test values
 			if tc.clientID != "" {
-				os.Setenv("AZURE_CLIENT_ID", tc.clientID)
+				_ = os.Setenv("AZURE_CLIENT_ID", tc.clientID)
 			} else {
-				os.Unsetenv("AZURE_CLIENT_ID")
+				_ = os.Unsetenv("AZURE_CLIENT_ID")
 			}
 			if tc.clientSecret != "" {
-				os.Setenv("AZURE_CLIENT_SECRET", tc.clientSecret)
+				_ = os.Setenv("AZURE_CLIENT_SECRET", tc.clientSecret)
 			} else {
-				os.Unsetenv("AZURE_CLIENT_SECRET")
+				_ = os.Unsetenv("AZURE_CLIENT_SECRET")
 			}
 			if tc.tenantID != "" {
-				os.Setenv("AZURE_TENANT_ID", tc.tenantID)
+				_ = os.Setenv("AZURE_TENANT_ID", tc.tenantID)
 			} else {
-				os.Unsetenv("AZURE_TENANT_ID")
+				_ = os.Unsetenv("AZURE_TENANT_ID")
 			}
 
 			result := HasServicePrincipalCredentials()

@@ -324,7 +324,7 @@ func PrintToTTY(format string, args ...interface{}) {
 			}
 		}()
 	}
-	fmt.Fprintf(tty, format, args...)
+	_, _ = fmt.Fprintf(tty, format, args...)
 }
 
 // ReportProgress prints progress information to TTY for real-time visibility
