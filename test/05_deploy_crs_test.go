@@ -13,6 +13,12 @@ import (
 func TestDeployment_ApplyResources(t *testing.T) {
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
@@ -29,8 +35,8 @@ func TestDeployment_ApplyResources(t *testing.T) {
 		"aro.yaml",
 	}
 
-	// Set kubectl context to Kind cluster
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	// Set kubectl context
+	context := config.GetKubeContext()
 
 	// Verify cluster is healthy before applying resources
 	// This addresses connection issues after long controller startup periods (issue #265)
@@ -68,6 +74,12 @@ func TestDeployment_ApplyCredentialsYAML(t *testing.T) {
 	t.Logf("Applying %s", file)
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
@@ -86,7 +98,7 @@ func TestDeployment_ApplyCredentialsYAML(t *testing.T) {
 		return
 	}
 
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 
 	// Verify cluster is healthy before applying resources
 	// This addresses connection issues after long controller startup periods (issue #265)
@@ -112,6 +124,12 @@ func TestDeployment_ApplyInfrastructureSecretsYAML(t *testing.T) {
 	t.Logf("Applying %s (infrastructure secrets)", file)
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
@@ -130,7 +148,7 @@ func TestDeployment_ApplyInfrastructureSecretsYAML(t *testing.T) {
 		return
 	}
 
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 
 	// Verify cluster is healthy before applying resources
 	// This addresses connection issues after long controller startup periods (issue #265)
@@ -156,6 +174,12 @@ func TestDeployment_ApplyAROClusterYAML(t *testing.T) {
 	t.Logf("Applying %s (ARO cluster configuration)", file)
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
@@ -174,7 +198,7 @@ func TestDeployment_ApplyAROClusterYAML(t *testing.T) {
 		return
 	}
 
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 
 	// Verify cluster is healthy before applying resources
 	// This addresses connection issues after long controller startup periods (issue #265)
@@ -198,6 +222,11 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 	PrintToTTY("\n=== Starting Cluster Monitoring Test ===\n")
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
 
 	PrintToTTY("Checking prerequisites...\n")
 	if !DirExists(config.RepoDir) {
@@ -225,7 +254,7 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 	}
 
 	// Set kubectl context to Kind cluster
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 	SetEnvVar(t, "KUBECONFIG", fmt.Sprintf("%s/.kube/config", os.Getenv("HOME")))
 
 	// First, check if cluster resource exists
@@ -271,7 +300,13 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 func TestDeployment_WaitForControlPlane(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Get the specific AROControlPlane name for the cluster being deployed
 	// This prevents checking the wrong control plane when multiple clusters exist (issue #355)
@@ -363,7 +398,13 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 func TestDeployment_CheckClusterConditions(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Use the provisioned cluster name from aro.yaml
 	provisionedClusterName := config.GetProvisionedClusterName()

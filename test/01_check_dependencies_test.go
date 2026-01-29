@@ -40,6 +40,40 @@ func TestCheckDependencies_ToolAvailable(t *testing.T) {
 	}
 }
 
+// TestCheckDependencies_ExternalKubeconfig validates the external kubeconfig when USE_KUBECONFIG is set.
+// This validates connectivity early before other tests fail with confusing errors.
+func TestCheckDependencies_ExternalKubeconfig(t *testing.T) {
+	config := NewTestConfig()
+
+	if !config.IsExternalCluster() {
+		t.Skip("USE_KUBECONFIG not set, skipping external kubeconfig validation")
+		return
+	}
+
+	// Validate kubeconfig file exists
+	if !FileExists(config.UseKubeconfig) {
+		t.Fatalf("Kubeconfig file not found: %s\n\nSet USE_KUBECONFIG to a valid kubeconfig file path.", config.UseKubeconfig)
+	}
+	t.Logf("Kubeconfig file exists: %s", config.UseKubeconfig)
+
+	// Extract and validate current-context
+	context := ExtractCurrentContext(config.UseKubeconfig)
+	if context == "" {
+		t.Fatalf("Failed to extract current-context from kubeconfig: %s\n\nEnsure the kubeconfig has a valid current-context set.", config.UseKubeconfig)
+	}
+	t.Logf("Current context: %s", context)
+
+	// Validate kubectl can connect to the cluster
+	SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	output, err := RunCommand(t, "kubectl", "--context", context, "get", "nodes", "--no-headers")
+	if err != nil {
+		t.Fatalf("Cannot connect to external cluster with context '%s': %v\n\nEnsure the cluster is accessible and credentials are valid.", context, err)
+	}
+
+	nodeCount := len(strings.Split(strings.TrimSpace(output), "\n"))
+	t.Logf("External cluster is accessible, found %d node(s)", nodeCount)
+}
+
 // TestCheckDependencies_DockerDaemonRunning verifies the Docker daemon is running and accessible.
 // This catches issues early before Kind Cluster tests fail with confusing errors.
 // On macOS, provides instructions for starting Docker Desktop or Rancher Desktop.

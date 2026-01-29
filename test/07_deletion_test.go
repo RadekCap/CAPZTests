@@ -12,7 +12,13 @@ import (
 // CAPI/CAPZ to clean up all associated resources including Azure resources.
 func TestDeletion_DeleteCluster(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Get the provisioned cluster name from aro.yaml
 	provisionedClusterName := config.GetProvisionedClusterName()
@@ -52,7 +58,13 @@ func TestDeletion_DeleteCluster(t *testing.T) {
 // progress information about all resources being deleted.
 func TestDeletion_WaitForClusterDeletion(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Get the provisioned cluster name from aro.yaml
 	provisionedClusterName := config.GetProvisionedClusterName()
@@ -126,7 +138,13 @@ func TestDeletion_WaitForClusterDeletion(t *testing.T) {
 // TestDeletion_VerifyAROControlPlaneDeletion verifies the AROControlPlane resource is deleted.
 func TestDeletion_VerifyAROControlPlaneDeletion(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestDeletion_VerifyAROControlPlaneDeletion",
 		"Verify AROControlPlane resource is deleted")
@@ -154,7 +172,13 @@ func TestDeletion_VerifyAROControlPlaneDeletion(t *testing.T) {
 // TestDeletion_VerifyMachinePoolDeletion verifies machine pool resources are deleted.
 func TestDeletion_VerifyMachinePoolDeletion(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestDeletion_VerifyMachinePoolDeletion",
 		"Verify machine pool resources are deleted")
@@ -240,7 +264,13 @@ func TestDeletion_VerifyAzureResourcesDeletion(t *testing.T) {
 // TestDeletion_Summary provides a summary of the deletion process.
 func TestDeletion_Summary(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestDeletion_Summary",
 		"Summary of cluster deletion status")

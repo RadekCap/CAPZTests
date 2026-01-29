@@ -293,6 +293,14 @@ export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 - `CAPZ_USER` - User identifier for domain prefix (default: `rcap`). Must be short enough that `${CAPZ_USER}-${DEPLOYMENT_ENV}` does not exceed 15 characters.
 - `TEST_NAMESPACE` - Kubernetes namespace for testing resources (default: `default`). All resource checks will be scoped to this namespace instead of using `-A` (all namespaces).
 
+### External Cluster Mode
+- `USE_KUBECONFIG` - Path to an external kubeconfig file. When set, the test suite runs in "external cluster mode":
+  - Skips Kind cluster creation (Phase 03)
+  - Skips repository cloning (Phase 02) - controllers are pre-installed
+  - Validates pre-installed CAPI/CAPZ/ASO controllers
+  - Uses the `current-context` from the specified kubeconfig file
+  - Automatically sets `USE_K8S=true` for MCE namespace defaults (`multicluster-engine`)
+
 **RFC 1123 Naming Compliance**: The following variables must be RFC 1123 compliant (lowercase alphanumeric and hyphens only, must start/end with alphanumeric):
 - `CAPZ_USER`
 - `CS_CLUSTER_NAME`

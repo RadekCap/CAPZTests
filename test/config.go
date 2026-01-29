@@ -69,6 +69,14 @@ type TestConfig struct {
 	CAPINamespace         string // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" when USE_K8S=true)
 	CAPZNamespace         string // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" when USE_K8S=true)
 
+	// External cluster configuration
+	// UseKubeconfig is the path to an external kubeconfig file.
+	// When set, the test suite runs in "external cluster mode":
+	// - Skips Kind cluster creation
+	// - Validates pre-installed controllers
+	// - Uses current-context from the kubeconfig
+	UseKubeconfig string
+
 	// Paths
 	ClusterctlBinPath string
 	ScriptsPath       string
@@ -81,6 +89,14 @@ type TestConfig struct {
 
 // NewTestConfig creates a new test configuration with defaults
 func NewTestConfig() *TestConfig {
+	useKubeconfig := os.Getenv("USE_KUBECONFIG")
+
+	// When using external kubeconfig, default to MCE namespaces (USE_K8S=true)
+	// This triggers multicluster-engine namespace for all controllers
+	if useKubeconfig != "" && os.Getenv("USE_K8S") == "" {
+		os.Setenv("USE_K8S", "true")
+	}
+
 	return &TestConfig{
 		// Repository defaults
 		RepoURL:    GetEnvOrDefault("ARO_REPO_URL", "https://github.com/stolostron/cluster-api-installer"),
@@ -99,6 +115,9 @@ func NewTestConfig() *TestConfig {
 		TestNamespace:         GetEnvOrDefault("TEST_NAMESPACE", "default"),
 		CAPINamespace:         getControllerNamespace("CAPI_NAMESPACE", "capi-system"),
 		CAPZNamespace:         getControllerNamespace("CAPZ_NAMESPACE", "capz-system"),
+
+		// External cluster
+		UseKubeconfig: useKubeconfig,
 
 		// Paths
 		ClusterctlBinPath: GetEnvOrDefault("CLUSTERCTL_BIN", "./bin/clusterctl"),
@@ -190,4 +209,20 @@ func (c *TestConfig) GetProvisionedClusterName() string {
 // GetAROYAMLPath returns the path to the generated aro.yaml file
 func (c *TestConfig) GetAROYAMLPath() string {
 	return fmt.Sprintf("%s/%s/aro.yaml", c.RepoDir, c.GetOutputDirName())
+}
+
+// IsExternalCluster returns true when using an external kubeconfig file
+// instead of creating a local Kind cluster.
+func (c *TestConfig) IsExternalCluster() bool {
+	return c.UseKubeconfig != ""
+}
+
+// GetKubeContext returns the kubectl context to use for the management cluster.
+// For external clusters, extracts current-context from the kubeconfig file.
+// For Kind clusters, returns "kind-{ManagementClusterName}".
+func (c *TestConfig) GetKubeContext() string {
+	if c.IsExternalCluster() {
+		return ExtractCurrentContext(c.UseKubeconfig)
+	}
+	return fmt.Sprintf("kind-%s", c.ManagementClusterName)
 }
