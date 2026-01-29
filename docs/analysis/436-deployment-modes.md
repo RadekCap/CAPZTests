@@ -67,7 +67,7 @@ make test-all
 **Trigger:** `USE_K8S=true`
 
 **Description:**
-Uses a local Kubernetes cluster with deployed CAPI, CAPZ, and ASO controllers. The test suite deploys controllers to the local cluster and proceeds with workload cluster deployment.
+Uses a local Kubernetes cluster with deployed CAPI, CAPZ, and ASO controllers in the `multicluster-engine` namespace. The test suite deploys controllers to the local cluster and proceeds with workload cluster deployment.
 
 **Prerequisites:**
 - Local Kubernetes cluster running
@@ -75,9 +75,9 @@ Uses a local Kubernetes cluster with deployed CAPI, CAPZ, and ASO controllers. T
 - Azure credentials for ASO configuration
 
 **Controller Deployment:**
-- CAPI controller deployed to `capi-system` namespace
-- CAPZ controller deployed to `capz-system` namespace
-- ASO controller deployed to `capz-system` namespace
+- CAPI controller deployed to `multicluster-engine` namespace
+- CAPZ controller deployed to `multicluster-engine` namespace
+- ASO controller deployed to `multicluster-engine` namespace
 - Controllers are deployed by the test suite
 
 **Test Phases:**
@@ -115,6 +115,7 @@ Connects to a local OpenShift installation running via CRC (CodeReady Containers
 - CAPI controller deployed to `capi-system` namespace
 - CAPZ controller deployed to `capz-system` namespace
 - ASO controller deployed to `capz-system` namespace
+- MCE webhook deployed to `capi-system` namespace (OCP-specific)
 - Controllers are deployed by the test suite
 
 **Test Phases:**
@@ -224,7 +225,7 @@ Do you have MCE cluster access?
 | Mode | CAPI Namespace | CAPZ/ASO Namespace |
 |------|----------------|-------------------|
 | Kind | `capi-system` | `capz-system` |
-| K8S | `capi-system` | `capz-system` |
+| K8S | `multicluster-engine` | `multicluster-engine` |
 | OCP | `capi-system` | `capz-system` |
 | MCE | `multicluster-engine` | `multicluster-engine` |
 
