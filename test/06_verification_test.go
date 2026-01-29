@@ -21,7 +21,13 @@ func getKubeconfigPath(config *TestConfig) string {
 func TestVerification_RetrieveKubeconfig(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Use the provisioned cluster name from aro.yaml
 	provisionedClusterName := config.GetProvisionedClusterName()
@@ -229,7 +235,13 @@ func TestVerification_ClusterHealth(t *testing.T) {
 func TestVerification_TestedVersionsSummary(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestVerification_TestedVersionsSummary",
 		"Display summary of tested infrastructure component versions")
@@ -272,7 +284,13 @@ func TestVerification_TestedVersionsSummary(t *testing.T) {
 func TestVerification_ControllerLogSummary(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestVerification_ControllerLogSummary",
 		"Summarize and save controller logs (CAPI, CAPZ, ASO)")
