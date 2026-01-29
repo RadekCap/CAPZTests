@@ -189,6 +189,30 @@ TEST_VERBOSITY= make test
 TEST_VERBOSITY=-v make test
 ```
 
+#### Using External Cluster (MCE)
+
+Instead of creating a local Kind cluster, you can run tests against an external Kubernetes cluster with pre-installed CAPI/CAPZ/ASO controllers:
+
+```bash
+# Extract kubeconfig from your cluster
+oc login https://api.mce-cluster.example.com:6443
+oc config view --raw > /tmp/mce-kubeconfig.yaml
+
+# Run tests against external cluster
+export USE_KUBECONFIG=/tmp/mce-kubeconfig.yaml
+export AZURE_CLIENT_ID=<client-id>
+export AZURE_CLIENT_SECRET=<client-secret>
+export AZURE_TENANT_ID=<tenant-id>
+export AZURE_SUBSCRIPTION_ID=<subscription-id>
+
+make test-all
+```
+
+When `USE_KUBECONFIG` is set:
+- Phase 02 (Setup) is skipped - no repository cloning needed
+- Phase 03 (Cluster) validates pre-installed controllers instead of creating Kind cluster
+- All other phases work normally using the external cluster
+
 **Note**: All test targets automatically generate JUnit XML reports in a timestamped `results/` directory. The path to the results directory is displayed when tests run.
 
 ### All Make Targets
