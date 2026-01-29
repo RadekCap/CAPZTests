@@ -9,12 +9,106 @@ import (
 	"time"
 )
 
+// TestExternalCluster_Connectivity validates the external cluster is reachable.
+// This test runs only when USE_KUBECONFIG is set, validating pre-installed controllers.
+func TestExternalCluster_Connectivity(t *testing.T) {
+	config := NewTestConfig()
+
+	if !config.IsExternalCluster() {
+		t.Skip("Not using external cluster (USE_KUBECONFIG not set)")
+	}
+
+	PrintTestHeader(t, "TestExternalCluster_Connectivity",
+		"Validate external cluster is reachable via kubeconfig")
+
+	// Set KUBECONFIG for kubectl
+	SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	context := config.GetKubeContext()
+
+	PrintToTTY("\n=== Testing external cluster connectivity ===\n")
+	PrintToTTY("Kubeconfig: %s\n", config.UseKubeconfig)
+	PrintToTTY("Context: %s\n\n", context)
+
+	output, err := RunCommand(t, "kubectl", "--context", context, "get", "nodes")
+	if err != nil {
+		PrintToTTY("❌ Failed to connect to external cluster: %v\n", err)
+		t.Fatalf("Cannot connect to external cluster: %v", err)
+	}
+
+	PrintToTTY("✅ External cluster nodes:\n%s\n\n", output)
+	t.Logf("External cluster nodes:\n%s", output)
+}
+
+// TestExternalCluster_ControllersReady validates CAPI/CAPZ/ASO controllers are installed.
+// This test runs only when USE_KUBECONFIG is set, validating pre-installed controllers.
+func TestExternalCluster_ControllersReady(t *testing.T) {
+	config := NewTestConfig()
+
+	if !config.IsExternalCluster() {
+		t.Skip("Not using external cluster (USE_KUBECONFIG not set)")
+	}
+
+	PrintTestHeader(t, "TestExternalCluster_ControllersReady",
+		"Validate CAPI/CAPZ/ASO controllers are installed on external cluster")
+
+	// Set KUBECONFIG for kubectl
+	SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	context := config.GetKubeContext()
+
+	PrintToTTY("\n=== Checking for pre-installed controllers ===\n")
+	PrintToTTY("CAPI Namespace: %s\n", config.CAPINamespace)
+	PrintToTTY("CAPZ Namespace: %s\n\n", config.CAPZNamespace)
+
+	// Check CAPI controller
+	PrintToTTY("Checking CAPI controller manager...\n")
+	_, err := RunCommand(t, "kubectl", "--context", context, "-n", config.CAPINamespace,
+		"get", "deployment", "capi-controller-manager")
+	if err != nil {
+		PrintToTTY("❌ CAPI controller not found in %s namespace\n", config.CAPINamespace)
+		t.Errorf("CAPI controller not found in %s namespace: %v", config.CAPINamespace, err)
+	} else {
+		PrintToTTY("✅ CAPI controller manager found\n")
+		t.Logf("CAPI controller manager found in %s", config.CAPINamespace)
+	}
+
+	// Check CAPZ controller
+	PrintToTTY("Checking CAPZ controller manager...\n")
+	_, err = RunCommand(t, "kubectl", "--context", context, "-n", config.CAPZNamespace,
+		"get", "deployment", "capz-controller-manager")
+	if err != nil {
+		PrintToTTY("❌ CAPZ controller not found in %s namespace\n", config.CAPZNamespace)
+		t.Errorf("CAPZ controller not found in %s namespace: %v", config.CAPZNamespace, err)
+	} else {
+		PrintToTTY("✅ CAPZ controller manager found\n")
+		t.Logf("CAPZ controller manager found in %s", config.CAPZNamespace)
+	}
+
+	// Check ASO controller
+	PrintToTTY("Checking ASO controller manager...\n")
+	_, err = RunCommand(t, "kubectl", "--context", context, "-n", config.CAPZNamespace,
+		"get", "deployment", "azureserviceoperator-controller-manager")
+	if err != nil {
+		PrintToTTY("❌ ASO controller not found in %s namespace\n", config.CAPZNamespace)
+		t.Errorf("ASO controller not found in %s namespace: %v", config.CAPZNamespace, err)
+	} else {
+		PrintToTTY("✅ ASO controller manager found\n")
+		t.Logf("ASO controller manager found in %s", config.CAPZNamespace)
+	}
+
+	PrintToTTY("\n✅ All required controllers are installed on external cluster\n\n")
+}
+
 // TestKindCluster_KindClusterReady tests deploying a Kind cluster with CAPZ and verifies it's ready
 func TestKindCluster_KindClusterReady(t *testing.T) {
+	config := NewTestConfig()
+
+	// Skip in external cluster mode - cluster is already provisioned
+	if config.IsExternalCluster() {
+		t.Skip("Using external cluster (USE_KUBECONFIG set), skipping Kind cluster deployment")
+	}
+
 	PrintTestHeader(t, "TestKindCluster_KindClusterReady",
 		"Deploy Kind cluster with CAPI/CAPZ/ASO controllers (may take 5-10 minutes)")
-
-	config := NewTestConfig()
 
 	if !DirExists(config.RepoDir) {
 		PrintToTTY("⚠️  Repository not cloned yet at %s\n", config.RepoDir)
@@ -103,7 +197,7 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 		// Patch the ASO credentials secret with actual Azure credentials
 		// The helm chart creates the secret with empty values, so we need to populate it
 		PrintToTTY("=== Patching ASO credentials secret ===\n")
-		context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+		context := config.GetKubeContext()
 		if err := PatchASOCredentialsSecret(t, context); err != nil {
 			PrintToTTY("❌ Failed to patch ASO credentials: %v\n", err)
 			t.Errorf("Failed to patch ASO credentials secret: %v", err)
@@ -122,7 +216,7 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 	// Set kubeconfig context
 	SetEnvVar(t, "KUBECONFIG", fmt.Sprintf("%s/.kube/config", os.Getenv("HOME")))
 
-	output, err := RunCommand(t, "kubectl", "--context", fmt.Sprintf("kind-%s", config.ManagementClusterName), "get", "nodes")
+	output, err := RunCommand(t, "kubectl", "--context", config.GetKubeContext(), "get", "nodes")
 	if err != nil {
 		PrintToTTY("❌ Failed to access Kind cluster nodes: %v\nOutput: %s\n\n", err, output)
 		t.Errorf("Failed to access Kind cluster nodes: %v\nOutput: %s", err, output)
@@ -150,10 +244,15 @@ func TestKindCluster_CAPINamespacesExists(t *testing.T) {
 
 	config := NewTestConfig()
 
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	PrintToTTY("\n=== Checking for CAPI namespaces ===\n")
 	t.Log("Checking for CAPI namespaces...")
 
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 
 	// Check for CAPI namespaces
 	expectedNamespaces := []string{
@@ -198,7 +297,13 @@ func TestKindCluster_CAPIControllerReady(t *testing.T) {
 		"Wait for CAPI controller manager deployment to become available (timeout: 10m)")
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	timeout := 10 * time.Minute
 	pollInterval := 10 * time.Second
@@ -282,7 +387,13 @@ func TestKindCluster_CAPZControllerReady(t *testing.T) {
 		"Wait for CAPZ controller manager deployment to become available (timeout: 10m)")
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	timeout := 10 * time.Minute
 	pollInterval := 10 * time.Second
@@ -361,7 +472,13 @@ func TestKindCluster_ASOCredentialsConfigured(t *testing.T) {
 		"Validate Azure credentials are configured in aso-controller-settings secret")
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Check if service principal credentials are available in the environment
 	// If not, skip the test gracefully since ASO won't work without them anyway
@@ -446,10 +563,15 @@ func TestKindCluster_ASOCredentialsConfigured(t *testing.T) {
 func TestKindCluster_ASOControllerReady(t *testing.T) {
 	config := NewTestConfig()
 
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	PrintTestHeader(t, "TestKindCluster_ASOControllerReady",
 		fmt.Sprintf("Wait for Azure Service Operator controller manager to become available (timeout: %v)", config.ASOControllerTimeout))
 
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 
 	timeout := config.ASOControllerTimeout
 	pollInterval := 10 * time.Second
@@ -518,7 +640,13 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 		"Wait for CAPI/CAPZ/ASO/MCE webhooks to accept connections (timeout: 5m)")
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Define webhooks to check
 	type webhookInfo struct {

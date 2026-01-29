@@ -288,6 +288,17 @@ func GetEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// ExtractCurrentContext reads the current-context from a kubeconfig file.
+// Returns the context name or empty string if extraction fails.
+func ExtractCurrentContext(kubeconfigPath string) string {
+	output, err := exec.Command("kubectl", "config", "current-context",
+		"--kubeconfig", kubeconfigPath).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
 // PrintTestHeader prints a clear test identification header to both terminal and test log.
 // This helps users understand which test is running and what it does.
 func PrintTestHeader(t *testing.T, testName, description string) {
