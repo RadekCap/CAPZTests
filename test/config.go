@@ -16,6 +16,10 @@ const (
 	// scanning existing CRDs, applying missing ones, and restarting to pick up new CRDs.
 	DefaultASOControllerTimeout = 10 * time.Minute
 
+	// DefaultMCEEnablementTimeout is the default timeout for waiting after MCE component enablement.
+	// MCE components need time to deploy controllers, pull images, and initialize.
+	DefaultMCEEnablementTimeout = 15 * time.Minute
+
 	// DefaultCAPZUser is the default user identifier for CAPZ resources.
 	// Used in ClusterNamePrefix (for resource group naming) and User field.
 	// Extracted to a constant to ensure consistency across all usages.
@@ -24,6 +28,10 @@ const (
 	// DefaultDeploymentEnv is the default deployment environment identifier.
 	// Used in ClusterNamePrefix and Environment field.
 	DefaultDeploymentEnv = "stage"
+
+	// MCE component names as used in mce.spec.overrides.components
+	MCEComponentCAPI = "cluster-api"
+	MCEComponentCAPZ = "cluster-api-provider-azure-preview"
 )
 
 var (
@@ -69,6 +77,14 @@ type TestConfig struct {
 	CAPINamespace         string // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" when USE_K8S=true)
 	CAPZNamespace         string // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" when USE_K8S=true)
 
+	// External cluster configuration
+	// UseKubeconfig is the path to an external kubeconfig file.
+	// When set, the test suite runs in "external cluster mode":
+	// - Skips Kind cluster creation
+	// - Validates pre-installed controllers
+	// - Uses current-context from the kubeconfig
+	UseKubeconfig string
+
 	// Paths
 	ClusterctlBinPath string
 	ScriptsPath       string
@@ -77,10 +93,26 @@ type TestConfig struct {
 	// Timeouts
 	DeploymentTimeout    time.Duration
 	ASOControllerTimeout time.Duration
+
+	// MCE (MultiClusterEngine) configuration
+	// MCEAutoEnable controls whether to automatically enable MCE CAPI/CAPZ components
+	// if they are not found on an external cluster. Default: true when IsExternalCluster().
+	MCEAutoEnable bool
+	// MCEEnablementTimeout is the timeout for waiting after MCE component enablement.
+	// Controllers need time to be deployed, images pulled, and pods started.
+	MCEEnablementTimeout time.Duration
 }
 
 // NewTestConfig creates a new test configuration with defaults
 func NewTestConfig() *TestConfig {
+	useKubeconfig := os.Getenv("USE_KUBECONFIG")
+
+	// When using external kubeconfig, default to MCE namespaces (USE_K8S=true)
+	// This triggers multicluster-engine namespace for all controllers
+	if useKubeconfig != "" && os.Getenv("USE_K8S") == "" {
+		os.Setenv("USE_K8S", "true")
+	}
+
 	return &TestConfig{
 		// Repository defaults
 		RepoURL:    GetEnvOrDefault("ARO_REPO_URL", "https://github.com/stolostron/cluster-api-installer"),
@@ -100,6 +132,9 @@ func NewTestConfig() *TestConfig {
 		CAPINamespace:         getControllerNamespace("CAPI_NAMESPACE", "capi-system"),
 		CAPZNamespace:         getControllerNamespace("CAPZ_NAMESPACE", "capz-system"),
 
+		// External cluster
+		UseKubeconfig: useKubeconfig,
+
 		// Paths
 		ClusterctlBinPath: GetEnvOrDefault("CLUSTERCTL_BIN", "./bin/clusterctl"),
 		ScriptsPath:       GetEnvOrDefault("SCRIPTS_PATH", "./scripts"),
@@ -108,6 +143,10 @@ func NewTestConfig() *TestConfig {
 		// Timeouts
 		DeploymentTimeout:    parseDeploymentTimeout(),
 		ASOControllerTimeout: parseASOControllerTimeout(),
+
+		// MCE configuration
+		MCEAutoEnable:        parseMCEAutoEnable(useKubeconfig),
+		MCEEnablementTimeout: parseMCEEnablementTimeout(),
 	}
 }
 
@@ -162,6 +201,35 @@ func parseASOControllerTimeout() time.Duration {
 	return timeout
 }
 
+// parseMCEAutoEnable parses the MCE_AUTO_ENABLE environment variable.
+// Returns true (default) when using external kubeconfig, false otherwise.
+// Can be explicitly set to "false" to disable auto-enablement.
+func parseMCEAutoEnable(useKubeconfig string) bool {
+	envVal := os.Getenv("MCE_AUTO_ENABLE")
+	if envVal != "" {
+		return envVal == "true"
+	}
+	// Default to true only when using external kubeconfig
+	return useKubeconfig != ""
+}
+
+// parseMCEEnablementTimeout parses the MCE_ENABLEMENT_TIMEOUT environment variable.
+// Returns the parsed duration or defaults to DefaultMCEEnablementTimeout.
+// Logs a warning if the provided value is invalid.
+func parseMCEEnablementTimeout() time.Duration {
+	timeoutStr := os.Getenv("MCE_ENABLEMENT_TIMEOUT")
+	if timeoutStr == "" {
+		return DefaultMCEEnablementTimeout
+	}
+
+	timeout, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: invalid MCE_ENABLEMENT_TIMEOUT '%s', using default %v\n", timeoutStr, DefaultMCEEnablementTimeout)
+		return DefaultMCEEnablementTimeout
+	}
+	return timeout
+}
+
 // GetOutputDirName returns the output directory name for generated infrastructure files
 func (c *TestConfig) GetOutputDirName() string {
 	return fmt.Sprintf("%s-%s", c.WorkloadClusterName, c.Environment)
@@ -190,4 +258,20 @@ func (c *TestConfig) GetProvisionedClusterName() string {
 // GetAROYAMLPath returns the path to the generated aro.yaml file
 func (c *TestConfig) GetAROYAMLPath() string {
 	return fmt.Sprintf("%s/%s/aro.yaml", c.RepoDir, c.GetOutputDirName())
+}
+
+// IsExternalCluster returns true when using an external kubeconfig file
+// instead of creating a local Kind cluster.
+func (c *TestConfig) IsExternalCluster() bool {
+	return c.UseKubeconfig != ""
+}
+
+// GetKubeContext returns the kubectl context to use for the management cluster.
+// For external clusters, extracts current-context from the kubeconfig file.
+// For Kind clusters, returns "kind-{ManagementClusterName}".
+func (c *TestConfig) GetKubeContext() string {
+	if c.IsExternalCluster() {
+		return ExtractCurrentContext(c.UseKubeconfig)
+	}
+	return fmt.Sprintf("kind-%s", c.ManagementClusterName)
 }

@@ -11,6 +11,11 @@ import (
 func TestSetup_CloneRepository(t *testing.T) {
 	config := NewTestConfig()
 
+	// Skip in external cluster mode - controllers are pre-installed
+	if config.IsExternalCluster() {
+		t.Skip("Using external cluster (USE_KUBECONFIG set), skipping repository clone")
+	}
+
 	// Check if directory already exists (idempotency check)
 	if DirExists(config.RepoDir) {
 		t.Logf("Repository directory already exists at %s", config.RepoDir)
@@ -60,6 +65,11 @@ func TestSetup_CloneRepository(t *testing.T) {
 func TestSetup_VerifyRepositoryStructure(t *testing.T) {
 	config := NewTestConfig()
 
+	// Skip in external cluster mode - controllers are pre-installed
+	if config.IsExternalCluster() {
+		t.Skip("Using external cluster (USE_KUBECONFIG set), skipping repository structure check")
+	}
+
 	if !DirExists(config.RepoDir) {
 		t.Skipf("Repository not cloned yet at %s", config.RepoDir)
 	}
@@ -83,6 +93,11 @@ func TestSetup_VerifyRepositoryStructure(t *testing.T) {
 // TestSetup_ScriptPermissions verifies scripts have executable permissions
 func TestSetup_ScriptPermissions(t *testing.T) {
 	config := NewTestConfig()
+
+	// Skip in external cluster mode - controllers are pre-installed
+	if config.IsExternalCluster() {
+		t.Skip("Using external cluster (USE_KUBECONFIG set), skipping script permissions check")
+	}
 
 	if !DirExists(config.RepoDir) {
 		t.Skipf("Repository not cloned yet at %s", config.RepoDir)
