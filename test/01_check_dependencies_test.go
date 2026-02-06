@@ -40,6 +40,63 @@ func TestCheckDependencies_ToolAvailable(t *testing.T) {
 	}
 }
 
+// TestCheckDependencies_OptionalTools checks for optional tools that enhance functionality.
+// These tools are not required for basic operation but enable additional features.
+func TestCheckDependencies_OptionalTools(t *testing.T) {
+	optionalTools := []struct {
+		name        string
+		description string
+		requiredFor string
+	}{
+		{"jq", "JSON processor for MCE component patching", "MCE auto-enablement (MCE_AUTO_ENABLE=true)"},
+	}
+
+	for _, tool := range optionalTools {
+		t.Run(tool.name, func(t *testing.T) {
+			if !CommandExists(tool.name) {
+				t.Logf("Optional tool '%s' not found: %s\n  Required for: %s",
+					tool.name, tool.description, tool.requiredFor)
+			} else {
+				t.Logf("Optional tool '%s' is available: %s", tool.name, tool.description)
+			}
+		})
+	}
+}
+
+// TestCheckDependencies_ExternalKubeconfig validates the external kubeconfig when USE_KUBECONFIG is set.
+// This validates connectivity early before other tests fail with confusing errors.
+func TestCheckDependencies_ExternalKubeconfig(t *testing.T) {
+	config := NewTestConfig()
+
+	if !config.IsExternalCluster() {
+		t.Skip("USE_KUBECONFIG not set, skipping external kubeconfig validation")
+		return
+	}
+
+	// Validate kubeconfig file exists
+	if !FileExists(config.UseKubeconfig) {
+		t.Fatalf("Kubeconfig file not found: %s\n\nSet USE_KUBECONFIG to a valid kubeconfig file path.", config.UseKubeconfig)
+	}
+	t.Logf("Kubeconfig file exists: %s", config.UseKubeconfig)
+
+	// Extract and validate current-context
+	context := ExtractCurrentContext(config.UseKubeconfig)
+	if context == "" {
+		t.Fatalf("Failed to extract current-context from kubeconfig: %s\n\nEnsure the kubeconfig has a valid current-context set.", config.UseKubeconfig)
+	}
+	t.Logf("Current context: %s", context)
+
+	// Validate kubectl can connect to the cluster
+	SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	output, err := RunCommand(t, "kubectl", "--context", context, "get", "nodes", "--no-headers")
+	if err != nil {
+		t.Fatalf("Cannot connect to external cluster with context '%s': %v\n\nEnsure the cluster is accessible and credentials are valid.", context, err)
+	}
+
+	nodeCount := len(strings.Split(strings.TrimSpace(output), "\n"))
+	t.Logf("External cluster is accessible, found %d node(s)", nodeCount)
+}
+
 // TestCheckDependencies_DockerDaemonRunning verifies the Docker daemon is running and accessible.
 // This catches issues early before Kind Cluster tests fail with confusing errors.
 // On macOS, provides instructions for starting Docker Desktop or Rancher Desktop.
@@ -643,13 +700,13 @@ func TestCheckDependencies_NamingCompliance(t *testing.T) {
 		}
 	})
 
-	// Validate TEST_NAMESPACE
-	t.Run("TEST_NAMESPACE", func(t *testing.T) {
-		if err := ValidateRFC1123Name(config.TestNamespace, "TEST_NAMESPACE"); err != nil {
+	// Validate WORKLOAD_CLUSTER_NAMESPACE
+	t.Run("WORKLOAD_CLUSTER_NAMESPACE", func(t *testing.T) {
+		if err := ValidateRFC1123Name(config.WorkloadClusterNamespace, "WORKLOAD_CLUSTER_NAMESPACE"); err != nil {
 			validationErrors = append(validationErrors, err.Error())
 			t.Error(err)
 		} else {
-			t.Logf("TEST_NAMESPACE '%s' is RFC 1123 compliant", config.TestNamespace)
+			t.Logf("WORKLOAD_CLUSTER_NAMESPACE '%s' is RFC 1123 compliant", config.WorkloadClusterNamespace)
 		}
 	})
 

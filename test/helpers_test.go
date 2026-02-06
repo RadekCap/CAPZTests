@@ -320,6 +320,122 @@ metadata:
 	}
 }
 
+func TestCheckYAMLConfigMatch(t *testing.T) {
+	// Create temporary directory for test files
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name           string
+		setupFile      func(t *testing.T) string // Returns file path
+		expectedPrefix string
+		wantMatch      bool
+		wantExisting   string
+	}{
+		{
+			name: "matching prefix",
+			setupFile: func(t *testing.T) string {
+				path := filepath.Join(tmpDir, "matching.yaml")
+				content := []byte(`---
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: rcapu-stage
+  namespace: default
+`)
+				if err := os.WriteFile(path, content, 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+				return path
+			},
+			expectedPrefix: "rcapu-stage",
+			wantMatch:      true,
+			wantExisting:   "rcapu-stage",
+		},
+		{
+			name: "mismatched prefix",
+			setupFile: func(t *testing.T) string {
+				path := filepath.Join(tmpDir, "mismatched.yaml")
+				content := []byte(`---
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: rcapb-stage
+  namespace: default
+`)
+				if err := os.WriteFile(path, content, 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+				return path
+			},
+			expectedPrefix: "rcapu-stage",
+			wantMatch:      false,
+			wantExisting:   "rcapb-stage",
+		},
+		{
+			name: "missing file returns false",
+			setupFile: func(t *testing.T) string {
+				return filepath.Join(tmpDir, "nonexistent.yaml")
+			},
+			expectedPrefix: "rcapu-stage",
+			wantMatch:      false,
+			wantExisting:   "",
+		},
+		{
+			name: "file without Cluster resource returns false",
+			setupFile: func(t *testing.T) string {
+				path := filepath.Join(tmpDir, "no-cluster.yaml")
+				content := []byte(`---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: some-config
+`)
+				if err := os.WriteFile(path, content, 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+				return path
+			},
+			expectedPrefix: "rcapu-stage",
+			wantMatch:      false,
+			wantExisting:   "",
+		},
+		{
+			name: "different environment suffix",
+			setupFile: func(t *testing.T) string {
+				path := filepath.Join(tmpDir, "diff-env.yaml")
+				content := []byte(`---
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: rcapu-prod
+  namespace: default
+`)
+				if err := os.WriteFile(path, content, 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+				return path
+			},
+			expectedPrefix: "rcapu-stage",
+			wantMatch:      false,
+			wantExisting:   "rcapu-prod",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filePath := tt.setupFile(t)
+			gotMatch, gotExisting := CheckYAMLConfigMatch(t, filePath, tt.expectedPrefix)
+
+			if gotMatch != tt.wantMatch {
+				t.Errorf("CheckYAMLConfigMatch() match = %v, want %v", gotMatch, tt.wantMatch)
+			}
+			if gotExisting != tt.wantExisting {
+				t.Errorf("CheckYAMLConfigMatch() existing = %q, want %q", gotExisting, tt.wantExisting)
+			}
+		})
+	}
+}
+
 func TestValidateYAMLFile(t *testing.T) {
 	// Create temporary directory for test files
 	tmpDir := t.TempDir()
@@ -493,6 +609,250 @@ nested:
 			}
 		})
 	}
+}
+
+func TestExtractNamespaceFromYAML(t *testing.T) {
+	// Create temporary directory for test files
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name              string
+		setupFile         func(t *testing.T) string // Returns file path
+		expectedNamespace string
+		expectError       bool
+		errorContains     string // Substring to match in error message
+	}{
+		{
+			name: "YAML with namespace in metadata",
+			setupFile: func(t *testing.T) string {
+				path := filepath.Join(tmpDir, "with-namespace.yaml")
+				content := []byte(`apiVersion: v1
+kind: Secret
+metadata:
+  name: test-secret
+  namespace: my-namespace
+data:
+  key: value
+`)
+				if err := os.WriteFile(path, content, 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+				return path
+			},
+			expectedNamespace: "my-namespace",
+			expectError:       false,
+		},
+		{
+			name: "multi-document YAML - returns first namespace",
+			setupFile: func(t *testing.T) string {
+				path := filepath.Join(tmpDir, "multi-doc.yaml")
+				content := []byte(`---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config1
+  namespace: first-namespace
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config2
+  namespace: second-namespace
+`)
+				if err := os.WriteFile(path, content, 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+				return path
+			},
+			expectedNamespace: "first-namespace",
+			expectError:       false,
+		},
+		{
+			name: "YAML without namespace",
+			setupFile: func(t *testing.T) string {
+				path := filepath.Join(tmpDir, "no-namespace.yaml")
+				content := []byte(`apiVersion: v1
+kind: ClusterRole
+metadata:
+  name: test-role
+rules: []
+`)
+				if err := os.WriteFile(path, content, 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+				return path
+			},
+			expectError:   true,
+			errorContains: "no namespace found",
+		},
+		{
+			name: "non-existent file",
+			setupFile: func(t *testing.T) string {
+				return filepath.Join(tmpDir, "does-not-exist.yaml")
+			},
+			expectError:   true,
+			errorContains: "failed to read file",
+		},
+		{
+			name: "namespace with special characters (hyphen and numbers)",
+			setupFile: func(t *testing.T) string {
+				path := filepath.Join(tmpDir, "special-namespace.yaml")
+				content := []byte(`apiVersion: v1
+kind: Secret
+metadata:
+  namespace: capz-test-20260202-135526
+  name: test
+`)
+				if err := os.WriteFile(path, content, 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+				return path
+			},
+			expectedNamespace: "capz-test-20260202-135526",
+			expectError:       false,
+		},
+		{
+			name: "namespace default",
+			setupFile: func(t *testing.T) string {
+				path := filepath.Join(tmpDir, "default-namespace.yaml")
+				content := []byte(`apiVersion: v1
+kind: Secret
+metadata:
+  name: test
+  namespace: default
+`)
+				if err := os.WriteFile(path, content, 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+				return path
+			},
+			expectedNamespace: "default",
+			expectError:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filePath := tt.setupFile(t)
+			namespace, err := ExtractNamespaceFromYAML(filePath)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("ExtractNamespaceFromYAML(%q) expected error containing %q, got nil", filePath, tt.errorContains)
+					return
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("ExtractNamespaceFromYAML(%q) error = %q, expected to contain %q", filePath, err.Error(), tt.errorContains)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("ExtractNamespaceFromYAML(%q) unexpected error: %v", filePath, err)
+					return
+				}
+				if namespace != tt.expectedNamespace {
+					t.Errorf("ExtractNamespaceFromYAML(%q) = %q, want %q", filePath, namespace, tt.expectedNamespace)
+				}
+			}
+		})
+	}
+}
+
+func TestDeploymentState_Namespace(t *testing.T) {
+	// Save original state file if it exists
+	originalData, originalExists := func() ([]byte, bool) {
+		data, err := os.ReadFile(DeploymentStateFile)
+		if err != nil {
+			return nil, false
+		}
+		return data, true
+	}()
+
+	// Cleanup: restore original state or remove test state
+	t.Cleanup(func() {
+		if originalExists {
+			_ = os.WriteFile(DeploymentStateFile, originalData, 0600)
+		} else {
+			_ = os.Remove(DeploymentStateFile)
+		}
+	})
+
+	t.Run("writes and reads namespace correctly", func(t *testing.T) {
+		// Remove any existing state file
+		_ = os.Remove(DeploymentStateFile)
+
+		config := &TestConfig{
+			ClusterNamePrefix:        "test-prefix",
+			ManagementClusterName:    "test-mgmt",
+			WorkloadClusterName:      "test-workload",
+			WorkloadClusterNamespace: "capz-test-20260202-123456",
+			Region:                   "uksouth",
+			CAPZUser:                 "testuser",
+			Environment:              "test",
+		}
+
+		err := WriteDeploymentState(config)
+		if err != nil {
+			t.Fatalf("WriteDeploymentState failed: %v", err)
+		}
+
+		state, err := ReadDeploymentState()
+		if err != nil {
+			t.Fatalf("ReadDeploymentState failed: %v", err)
+		}
+		if state == nil {
+			t.Fatal("ReadDeploymentState returned nil")
+		}
+
+		if state.WorkloadClusterNamespace != "capz-test-20260202-123456" {
+			t.Errorf("WorkloadClusterNamespace = %q, want %q", state.WorkloadClusterNamespace, "capz-test-20260202-123456")
+		}
+	})
+
+	t.Run("handles missing namespace field (backward compatibility)", func(t *testing.T) {
+		// Write a state file without the namespace field (simulating old format)
+		oldFormatJSON := `{
+  "resource_group": "old-resgroup",
+  "management_cluster_name": "old-mgmt",
+  "workload_cluster_name": "old-workload",
+  "cluster_name_prefix": "old-prefix",
+  "region": "uksouth",
+  "user": "olduser",
+  "environment": "old"
+}`
+		if err := os.WriteFile(DeploymentStateFile, []byte(oldFormatJSON), 0600); err != nil {
+			t.Fatalf("Failed to write test state file: %v", err)
+		}
+
+		state, err := ReadDeploymentState()
+		if err != nil {
+			t.Fatalf("ReadDeploymentState failed with old format: %v", err)
+		}
+		if state == nil {
+			t.Fatal("ReadDeploymentState returned nil for old format")
+		}
+
+		// Namespace should be empty string for old format files
+		if state.WorkloadClusterNamespace != "" {
+			t.Errorf("WorkloadClusterNamespace should be empty for old format, got %q", state.WorkloadClusterNamespace)
+		}
+
+		// Other fields should still be read correctly
+		if state.ResourceGroup != "old-resgroup" {
+			t.Errorf("ResourceGroup = %q, want %q", state.ResourceGroup, "old-resgroup")
+		}
+	})
+
+	t.Run("returns nil for non-existent file", func(t *testing.T) {
+		_ = os.Remove(DeploymentStateFile)
+
+		state, err := ReadDeploymentState()
+		if err != nil {
+			t.Fatalf("ReadDeploymentState should not error for missing file: %v", err)
+		}
+		if state != nil {
+			t.Error("ReadDeploymentState should return nil for missing file")
+		}
+	})
 }
 
 func TestFormatAROControlPlaneConditions(t *testing.T) {
@@ -1546,7 +1906,7 @@ func TestFormatComponentVersions(t *testing.T) {
 			WorkloadClusterName:   "test-workload",
 			Region:                "eastus",
 			ClusterNamePrefix:     "test-prefix",
-			OpenShiftVersion:      "4.21",
+			OCPVersion:            "4.21",
 		}
 		result := FormatComponentVersions(versions, config)
 		checks := []string{
@@ -2300,7 +2660,7 @@ func TestFormatComponentVersions_ConfigFallback(t *testing.T) {
 		WorkloadClusterName:   "workload-cluster",
 		Region:                "eastus",
 		ClusterNamePrefix:     "test",
-		OpenShiftVersion:      "4.21",
+		OCPVersion:            "4.21",
 	}
 
 	versions := []ComponentVersion{
@@ -2743,13 +3103,13 @@ func TestFormatValidationResults(t *testing.T) {
 func TestValidateAllConfigurations(t *testing.T) {
 	// Create a valid config
 	config := &TestConfig{
-		CAPZUser:             "rcap",
-		Environment:          "stage",
-		ClusterNamePrefix:    "rcap-stage",
-		TestNamespace:        "default",
-		Region:               "uksouth",
-		DeploymentTimeout:    45 * time.Minute,
-		ASOControllerTimeout: 10 * time.Minute,
+		CAPZUser:                 "rcap",
+		Environment:              "stage",
+		ClusterNamePrefix:        "rcap-stage",
+		WorkloadClusterNamespace: "capz-test-20260101-120000",
+		Region:                   "uksouth",
+		DeploymentTimeout:        45 * time.Minute,
+		ASOControllerTimeout:     10 * time.Minute,
 	}
 
 	results := ValidateAllConfigurations(t, config)
@@ -2771,13 +3131,13 @@ func TestValidateAllConfigurations(t *testing.T) {
 func TestValidateAllConfigurations_InvalidConfig(t *testing.T) {
 	// Create an invalid config (RFC 1123 violation - uppercase)
 	config := &TestConfig{
-		CAPZUser:             "RCAP", // Invalid - uppercase
-		Environment:          "stage",
-		ClusterNamePrefix:    "RCAP-stage", // Invalid - uppercase
-		TestNamespace:        "default",
-		Region:               "uksouth",
-		DeploymentTimeout:    45 * time.Minute,
-		ASOControllerTimeout: 10 * time.Minute,
+		CAPZUser:                 "RCAP", // Invalid - uppercase
+		Environment:              "stage",
+		ClusterNamePrefix:        "RCAP-stage", // Invalid - uppercase
+		WorkloadClusterNamespace: "capz-test-20260101-120000",
+		Region:                   "uksouth",
+		DeploymentTimeout:        45 * time.Minute,
+		ASOControllerTimeout:     10 * time.Minute,
 	}
 
 	results := ValidateAllConfigurations(t, config)
@@ -2823,5 +3183,166 @@ func TestFormatRemediationSteps_Empty(t *testing.T) {
 	result := formatRemediationSteps([]string{})
 	if result != "" {
 		t.Errorf("formatRemediationSteps([]) should return empty string, got: %s", result)
+	}
+}
+
+// ============================================================================
+// Cluster Resource Detection Tests (Issue #433 - Fail-fast mismatch detection)
+// ============================================================================
+
+// TestCheckForMismatchedClusters_Logic tests the mismatch detection logic.
+// Note: This tests the pure logic without needing a real cluster.
+func TestCheckForMismatchedClusters_Logic(t *testing.T) {
+	tests := []struct {
+		name             string
+		existingClusters []string
+		expectedPrefix   string
+		wantMismatched   []string
+	}{
+		{
+			name:             "no clusters - no mismatch",
+			existingClusters: []string{},
+			expectedPrefix:   "rcapk-stage",
+			wantMismatched:   nil,
+		},
+		{
+			name:             "all match prefix",
+			existingClusters: []string{"rcapk-stage", "rcapk-stage-2"},
+			expectedPrefix:   "rcapk-stage",
+			wantMismatched:   nil,
+		},
+		{
+			name:             "one mismatch",
+			existingClusters: []string{"rcapb-stage", "rcapk-stage"},
+			expectedPrefix:   "rcapk-stage",
+			wantMismatched:   []string{"rcapb-stage"},
+		},
+		{
+			name:             "all mismatch",
+			existingClusters: []string{"rcapb-stage", "other-cluster"},
+			expectedPrefix:   "rcapk-stage",
+			wantMismatched:   []string{"rcapb-stage", "other-cluster"},
+		},
+		{
+			name:             "similar but not matching prefix",
+			existingClusters: []string{"rcapk", "rcapk-prod"},
+			expectedPrefix:   "rcapk-stage",
+			wantMismatched:   []string{"rcapk", "rcapk-prod"},
+		},
+		{
+			name:             "exact match only",
+			existingClusters: []string{"rcapk-stage"},
+			expectedPrefix:   "rcapk-stage",
+			wantMismatched:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test the prefix matching logic directly
+			var mismatched []string
+			for _, name := range tt.existingClusters {
+				if !strings.HasPrefix(name, tt.expectedPrefix) {
+					mismatched = append(mismatched, name)
+				}
+			}
+
+			// Compare results
+			if len(mismatched) != len(tt.wantMismatched) {
+				t.Errorf("mismatched count = %d, want %d", len(mismatched), len(tt.wantMismatched))
+				t.Logf("got: %v, want: %v", mismatched, tt.wantMismatched)
+				return
+			}
+
+			for i, name := range mismatched {
+				if name != tt.wantMismatched[i] {
+					t.Errorf("mismatched[%d] = %q, want %q", i, name, tt.wantMismatched[i])
+				}
+			}
+		})
+	}
+}
+
+// TestFormatMismatchedClustersError tests the error message formatting.
+func TestFormatMismatchedClustersError(t *testing.T) {
+	tests := []struct {
+		name           string
+		mismatched     []string
+		expectedPrefix string
+		namespace      string
+		wantContains   []string
+	}{
+		{
+			name:           "single cluster",
+			mismatched:     []string{"rcapb-stage"},
+			expectedPrefix: "rcapk-stage",
+			namespace:      "default",
+			wantContains: []string{
+				"EXISTING CLUSTER RESOURCES DETECTED",
+				"rcapb-stage",
+				"rcapk-stage",
+				"kubectl delete cluster rcapb-stage -n default",
+				"make clean",
+			},
+		},
+		{
+			name:           "multiple clusters",
+			mismatched:     []string{"rcapb-stage", "old-cluster"},
+			expectedPrefix: "rcapk-stage",
+			namespace:      "test-ns",
+			wantContains: []string{
+				"rcapb-stage",
+				"old-cluster",
+				"kubectl delete cluster --all -n test-ns",
+				"CAPZ_USER was changed",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatMismatchedClustersError(tt.mismatched, tt.expectedPrefix, tt.namespace)
+
+			for _, want := range tt.wantContains {
+				if !strings.Contains(result, want) {
+					t.Errorf("FormatMismatchedClustersError() should contain %q", want)
+					t.Logf("Got:\n%s", result)
+				}
+			}
+		})
+	}
+}
+
+// TestFormatMismatchedClustersError_HasInstructions verifies the error message provides actionable guidance.
+func TestFormatMismatchedClustersError_HasInstructions(t *testing.T) {
+	result := FormatMismatchedClustersError(
+		[]string{"old-cluster"},
+		"new-prefix",
+		"default",
+	)
+
+	// Must have clear header
+	if !strings.Contains(result, "━") {
+		t.Error("Error message should have visual separator")
+	}
+
+	// Must explain the problem
+	if !strings.Contains(result, "don't match current configuration") {
+		t.Error("Error message should explain what the problem is")
+	}
+
+	// Must provide cleanup commands
+	if !strings.Contains(result, "kubectl delete") {
+		t.Error("Error message should provide kubectl delete command")
+	}
+
+	// Must mention make clean alternative
+	if !strings.Contains(result, "make clean") {
+		t.Error("Error message should mention make clean as alternative")
+	}
+
+	// Must provide context about why this happens
+	if !strings.Contains(result, "CAPZ_USER") {
+		t.Error("Error message should explain CAPZ_USER change scenario")
 	}
 }

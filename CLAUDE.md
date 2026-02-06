@@ -287,22 +287,44 @@ export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
   - Use this variable for configuring tests; `KIND_CLUSTER_NAME` is set internally
 - `WORKLOAD_CLUSTER_NAME` - ARO workload cluster name (default: `capz-tests-cluster`)
 - `CS_CLUSTER_NAME` - **C**luster **S**ervice cluster name prefix used for YAML generation and Azure resource naming (default: `${CAPZ_USER}-${DEPLOYMENT_ENV}`). The Azure resource group will be named `${CS_CLUSTER_NAME}-resgroup`. This prefix is also used for the ExternalAuth resource ID.
-- `OPENSHIFT_VERSION` - OpenShift version (default: `4.21`)
+- `OCP_VERSION` - OpenShift version (default: `4.21`)
 - `REGION` - Azure region (default: `uksouth`)
 - `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`)
 - `CAPZ_USER` - User identifier for domain prefix (default: `rcap`). Must be short enough that `${CAPZ_USER}-${DEPLOYMENT_ENV}` does not exceed 15 characters.
-- `TEST_NAMESPACE` - Kubernetes namespace for testing resources (default: `default`). All resource checks will be scoped to this namespace instead of using `-A` (all namespaces).
+- `WORKLOAD_CLUSTER_NAMESPACE` - Namespace for workload cluster resources (CAPI CRs that create Azure resources). If set, uses the exact value provided (for resume scenarios). If not set, generates a unique namespace per test run using `${WORKLOAD_CLUSTER_NAMESPACE_PREFIX}-${TIMESTAMP}` format (e.g., `capz-test-20260202-135526`). This namespace is passed as `$NAMESPACE` to the YAML generation script.
+- `WORKLOAD_CLUSTER_NAMESPACE_PREFIX` - Prefix for auto-generated workload cluster namespace (default: `capz-test`). Only used when `WORKLOAD_CLUSTER_NAMESPACE` is not set.
+
+### External Cluster Mode
+- `USE_KUBECONFIG` - Path to an external kubeconfig file. When set, the test suite runs in "external cluster mode":
+  - Skips Kind cluster creation (Phase 03)
+  - Skips repository cloning (Phase 02) - controllers are pre-installed
+  - Validates pre-installed CAPI/CAPZ/ASO controllers
+  - Uses the `current-context` from the specified kubeconfig file
+  - Automatically sets `USE_K8S=true` for MCE namespace defaults (`multicluster-engine`)
 
 **RFC 1123 Naming Compliance**: The following variables must be RFC 1123 compliant (lowercase alphanumeric and hyphens only, must start/end with alphanumeric):
 - `CAPZ_USER`
 - `CS_CLUSTER_NAME`
 - `DEPLOYMENT_ENV`
-- `TEST_NAMESPACE`
+- `WORKLOAD_CLUSTER_NAMESPACE`
+- `WORKLOAD_CLUSTER_NAMESPACE_PREFIX`
 
 This is validated during Check Dependencies (phase 1) to prevent late deployment failures.
 
 ### Test Behavior
 - `DEPLOYMENT_TIMEOUT` - Control plane deployment timeout (default: `45m`, format: Go duration like `1h`, `45m`)
+
+### MCE Component Management
+- `MCE_AUTO_ENABLE` - Auto-enable MCE CAPI/CAPZ components if not found on external cluster (default: `true` when `USE_KUBECONFIG` is set)
+- `MCE_ENABLEMENT_TIMEOUT` - Timeout for waiting after MCE component enablement (default: `15m`, format: Go duration)
+
+When using an external MCE cluster (`USE_KUBECONFIG`), the test suite will:
+1. Detect if the cluster is an MCE installation
+2. Check if CAPI (`cluster-api`) and CAPZ (`cluster-api-provider-azure-preview`) components are enabled
+3. If disabled and `MCE_AUTO_ENABLE=true`, automatically enable them via MCE patching
+4. Wait for controllers to become available before proceeding
+
+**Note**: MCE auto-enablement requires `jq` to be installed for JSON transformation.
 
 ## Key Architecture Decisions
 

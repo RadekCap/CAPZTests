@@ -21,7 +21,13 @@ func getKubeconfigPath(config *TestConfig) string {
 func TestVerification_RetrieveKubeconfig(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Use the provisioned cluster name from aro.yaml
 	provisionedClusterName := config.GetProvisionedClusterName()
@@ -29,7 +35,7 @@ func TestVerification_RetrieveKubeconfig(t *testing.T) {
 	// Check cluster phase before attempting kubeconfig retrieval (fixes #275)
 	// When a cluster is still provisioning, ASO creates the kubeconfig secret with an empty
 	// value, which causes confusing "Secret value is empty" errors.
-	clusterPhase, err := GetClusterPhase(t, context, config.TestNamespace, provisionedClusterName)
+	clusterPhase, err := GetClusterPhase(t, context, config.WorkloadClusterNamespace, provisionedClusterName)
 	if err != nil {
 		t.Skipf("Cannot determine cluster phase: %v (cluster resource may not exist yet)", err)
 	}
@@ -42,13 +48,13 @@ func TestVerification_RetrieveKubeconfig(t *testing.T) {
 	// Kubeconfig output path - use helper for consistency
 	kubeconfigPath := getKubeconfigPath(config)
 
-	t.Logf("Retrieving kubeconfig for cluster '%s' (namespace: %s)", provisionedClusterName, config.TestNamespace)
+	t.Logf("Retrieving kubeconfig for cluster '%s' (namespace: %s)", provisionedClusterName, config.WorkloadClusterNamespace)
 
 	// Method 1: Using kubectl to get secret
 	secretName := fmt.Sprintf("%s-kubeconfig", provisionedClusterName)
 
-	t.Logf("Attempting Method 1: kubectl --context %s -n %s get secret %s -o jsonpath={.data.value}", context, config.TestNamespace, secretName)
-	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace, "get", "secret",
+	t.Logf("Attempting Method 1: kubectl --context %s -n %s get secret %s -o jsonpath={.data.value}", context, config.WorkloadClusterNamespace, secretName)
+	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace, "get", "secret",
 		secretName, "-o", "jsonpath={.data.value}")
 
 	if err != nil {
@@ -61,9 +67,9 @@ func TestVerification_RetrieveKubeconfig(t *testing.T) {
 		}
 
 		if FileExists(clusterctlPath) || CommandExists("clusterctl") {
-			t.Logf("Attempting Method 2: %s get kubeconfig %s -n %s", clusterctlPath, provisionedClusterName, config.TestNamespace)
+			t.Logf("Attempting Method 2: %s get kubeconfig %s -n %s", clusterctlPath, provisionedClusterName, config.WorkloadClusterNamespace)
 
-			output, err = RunCommand(t, clusterctlPath, "get", "kubeconfig", provisionedClusterName, "-n", config.TestNamespace)
+			output, err = RunCommand(t, clusterctlPath, "get", "kubeconfig", provisionedClusterName, "-n", config.WorkloadClusterNamespace)
 			if err != nil {
 				t.Errorf("Both kubeconfig retrieval methods failed: %v", err)
 				return
@@ -229,7 +235,13 @@ func TestVerification_ClusterHealth(t *testing.T) {
 func TestVerification_TestedVersionsSummary(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestVerification_TestedVersionsSummary",
 		"Display summary of tested infrastructure component versions")
@@ -272,7 +284,13 @@ func TestVerification_TestedVersionsSummary(t *testing.T) {
 func TestVerification_ControllerLogSummary(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestVerification_ControllerLogSummary",
 		"Summarize and save controller logs (CAPI, CAPZ, ASO)")

@@ -288,6 +288,17 @@ func GetEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// ExtractCurrentContext reads the current-context from a kubeconfig file.
+// Returns the context name or empty string if extraction fails.
+func ExtractCurrentContext(kubeconfigPath string) string {
+	output, err := exec.Command("kubectl", "config", "current-context",
+		"--kubeconfig", kubeconfigPath).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
 // PrintTestHeader prints a clear test identification header to both terminal and test log.
 // This helps users understand which test is running and what it does.
 func PrintTestHeader(t *testing.T, testName, description string) {
@@ -448,6 +459,36 @@ func ExtractClusterNameFromYAML(filePath string) (string, error) {
 	}
 
 	return "", fmt.Errorf("no Cluster resource found in %s", filePath)
+}
+
+// CheckYAMLConfigMatch verifies that existing YAML files match the current configuration.
+// It extracts the cluster name from the aro.yaml file and compares it with the expected
+// cluster name prefix. This is used to detect configuration mismatches that would cause
+// the test to use stale YAML files with outdated values.
+//
+// Returns:
+//   - matches: true if the existing YAML matches the expected prefix, false otherwise
+//   - existingPrefix: the cluster name extracted from the existing YAML file
+//
+// If the file doesn't exist or cannot be parsed, returns (false, "") to trigger regeneration.
+func CheckYAMLConfigMatch(t *testing.T, aroYAMLPath, expectedPrefix string) (matches bool, existingPrefix string) {
+	t.Helper()
+
+	// Extract cluster name from existing aro.yaml
+	clusterName, err := ExtractClusterNameFromYAML(aroYAMLPath)
+	if err != nil {
+		// File doesn't exist or can't be parsed - needs regeneration
+		t.Logf("Could not extract cluster name from %s: %v", aroYAMLPath, err)
+		return false, ""
+	}
+
+	// Compare the extracted cluster name with expected prefix
+	// The cluster name in aro.yaml should match the ClusterNamePrefix (e.g., "rcapu-stage")
+	if clusterName == expectedPrefix {
+		return true, clusterName
+	}
+
+	return false, clusterName
 }
 
 // AROControlPlaneCondition represents a condition from the AROControlPlane status
@@ -897,6 +938,21 @@ func WaitForClusterHealthy(t *testing.T, kubeContext string, timeout time.Durati
 // Returns nil on success, or an error if all retries are exhausted.
 func ApplyWithRetry(t *testing.T, kubeContext, yamlPath string, maxRetries int) error {
 	t.Helper()
+	// Use the configured workload cluster namespace
+	config := NewTestConfig()
+	return ApplyWithRetryInNamespace(t, kubeContext, config.WorkloadClusterNamespace, yamlPath, maxRetries)
+}
+
+// ApplyWithRetryInNamespace applies a YAML file with retry logic to a specific namespace.
+// Parameters:
+//   - kubeContext: kubectl context to use
+//   - namespace: Kubernetes namespace to apply resources to
+//   - yamlPath: path to the YAML file to apply
+//   - maxRetries: maximum number of retry attempts (use 0 for default of 5)
+//
+// Returns nil on success, or an error if all retries are exhausted.
+func ApplyWithRetryInNamespace(t *testing.T, kubeContext, namespace, yamlPath string, maxRetries int) error {
+	t.Helper()
 
 	if maxRetries <= 0 {
 		maxRetries = DefaultApplyMaxRetries
@@ -905,10 +961,10 @@ func ApplyWithRetry(t *testing.T, kubeContext, yamlPath string, maxRetries int) 
 	baseDelay := DefaultApplyRetryDelay
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		PrintToTTY("[%d/%d] Applying %s...\n", attempt, maxRetries, yamlPath)
-		t.Logf("Applying %s (attempt %d/%d)", yamlPath, attempt, maxRetries)
+		PrintToTTY("[%d/%d] Applying %s to namespace %s...\n", attempt, maxRetries, yamlPath, namespace)
+		t.Logf("Applying %s to namespace %s (attempt %d/%d)", yamlPath, namespace, attempt, maxRetries)
 
-		output, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext, "apply", "-f", yamlPath)
+		output, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext, "-n", namespace, "apply", "-f", yamlPath)
 
 		// Check if apply was successful
 		if err == nil || IsKubectlApplySuccess(output) {
@@ -1389,7 +1445,7 @@ func FormatComponentVersions(versions []ComponentVersion, config *TestConfig) st
 			result.WriteString(fmt.Sprintf("  Subscription:       %s\n", config.AzureSubscriptionName))
 		}
 		result.WriteString(fmt.Sprintf("  Resource Group:     %s-resgroup\n", config.ClusterNamePrefix))
-		result.WriteString(fmt.Sprintf("  OpenShift Version:  %s\n", config.OpenShiftVersion))
+		result.WriteString(fmt.Sprintf("  OpenShift Version:  %s\n", config.OCPVersion))
 	}
 
 	// Used repositories
@@ -1455,17 +1511,37 @@ func ValidateYAMLFile(filePath string) error {
 	return nil
 }
 
+// ExtractNamespaceFromYAML extracts the namespace from the first Kubernetes resource in a YAML file.
+// This is used to check if existing generated YAMLs match the current namespace configuration.
+func ExtractNamespaceFromYAML(filePath string) (string, error) {
+	// #nosec G304 - filePath comes from test configuration
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Use regex to find first namespace: value in the YAML
+	// This handles both single and multi-document YAML files
+	re := regexp.MustCompile(`(?m)^\s*namespace:\s*(\S+)`)
+	matches := re.FindSubmatch(content)
+	if len(matches) < 2 {
+		return "", fmt.Errorf("no namespace found in %s", filePath)
+	}
+	return string(matches[1]), nil
+}
+
 // DeploymentState holds information about the deployed test resources.
 // This is written to a state file during deployment and read during cleanup
 // to ensure the cleanup targets the correct Azure resources.
 type DeploymentState struct {
-	ResourceGroup         string `json:"resource_group"`
-	ManagementClusterName string `json:"management_cluster_name"`
-	WorkloadClusterName   string `json:"workload_cluster_name"`
-	ClusterNamePrefix     string `json:"cluster_name_prefix"`
-	Region                string `json:"region"`
-	User                  string `json:"user"`
-	Environment           string `json:"environment"`
+	ResourceGroup            string `json:"resource_group"`
+	ManagementClusterName    string `json:"management_cluster_name"`
+	WorkloadClusterName      string `json:"workload_cluster_name"`
+	WorkloadClusterNamespace string `json:"workload_cluster_namespace"`
+	ClusterNamePrefix        string `json:"cluster_name_prefix"`
+	Region                   string `json:"region"`
+	User                     string `json:"user"`
+	Environment              string `json:"environment"`
 }
 
 // DeploymentStateFile is the path to the deployment state file.
@@ -1477,13 +1553,14 @@ const DeploymentStateFile = ".deployment-state.json"
 // regardless of current environment variables or config defaults.
 func WriteDeploymentState(config *TestConfig) error {
 	state := DeploymentState{
-		ResourceGroup:         fmt.Sprintf("%s-resgroup", config.ClusterNamePrefix),
-		ManagementClusterName: config.ManagementClusterName,
-		WorkloadClusterName:   config.WorkloadClusterName,
-		ClusterNamePrefix:     config.ClusterNamePrefix,
-		Region:                config.Region,
-		User:                  config.CAPZUser,
-		Environment:           config.Environment,
+		ResourceGroup:            fmt.Sprintf("%s-resgroup", config.ClusterNamePrefix),
+		ManagementClusterName:    config.ManagementClusterName,
+		WorkloadClusterName:      config.WorkloadClusterName,
+		WorkloadClusterNamespace: config.WorkloadClusterNamespace,
+		ClusterNamePrefix:        config.ClusterNamePrefix,
+		Region:                   config.Region,
+		User:                     config.CAPZUser,
+		Environment:              config.Environment,
 	}
 
 	data, err := json.MarshalIndent(state, "", "  ")
@@ -2403,7 +2480,7 @@ func ValidateAllConfigurations(t *testing.T, config *TestConfig) []ConfigValidat
 		{"CAPZ_USER", config.CAPZUser},
 		{"DEPLOYMENT_ENV", config.Environment},
 		{"CS_CLUSTER_NAME", config.ClusterNamePrefix},
-		{"TEST_NAMESPACE", config.TestNamespace},
+		{"WORKLOAD_CLUSTER_NAMESPACE", config.WorkloadClusterNamespace},
 	} {
 		result := ConfigValidationResult{
 			Variable:   item.name,
@@ -2543,4 +2620,288 @@ func FormatValidationResults(results []ConfigValidationResult) string {
 	}
 
 	return sb.String()
+}
+
+// =============================================================================
+// Cluster Resource Detection Functions
+// =============================================================================
+
+// GetExistingClusterNames returns names of all Cluster CRs in the specified namespace.
+// Returns an empty slice if no clusters are found or if the Cluster CRD is not installed.
+func GetExistingClusterNames(t *testing.T, kubeContext, namespace string) ([]string, error) {
+	t.Helper()
+
+	// Get all Cluster resources in the namespace
+	output, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext,
+		"-n", namespace, "get", "cluster", "-o", "jsonpath={.items[*].metadata.name}")
+
+	if err != nil {
+		// Check if the error is because CRD doesn't exist (expected on fresh clusters)
+		if strings.Contains(output, "the server doesn't have a resource type") ||
+			strings.Contains(output, "No resources found") ||
+			strings.Contains(err.Error(), "NotFound") {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("failed to list Cluster resources: %w", err)
+	}
+
+	// Parse the space-separated list of cluster names
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return []string{}, nil
+	}
+
+	names := strings.Fields(output)
+	return names, nil
+}
+
+// CheckForMismatchedClusters checks if any existing Cluster CRs don't match the expected prefix.
+// Returns a list of cluster names that don't start with the expected prefix.
+// This is used to detect stale Cluster resources from previous configurations (e.g., different CAPZ_USER).
+func CheckForMismatchedClusters(t *testing.T, kubeContext, namespace, expectedPrefix string) ([]string, error) {
+	t.Helper()
+
+	existingClusters, err := GetExistingClusterNames(t, kubeContext, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var mismatched []string
+	for _, name := range existingClusters {
+		// Check if the cluster name starts with the expected prefix
+		if !strings.HasPrefix(name, expectedPrefix) {
+			mismatched = append(mismatched, name)
+		}
+	}
+
+	return mismatched, nil
+}
+
+// FormatMismatchedClustersError formats a user-friendly error message for mismatched clusters.
+// This provides clear guidance on how to clean up stale Cluster resources.
+func FormatMismatchedClustersError(mismatched []string, expectedPrefix, namespace string) string {
+	var sb strings.Builder
+
+	sb.WriteString("\n")
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	sb.WriteString("❌ EXISTING CLUSTER RESOURCES DETECTED\n")
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+
+	sb.WriteString("Found existing Cluster CRs that don't match current configuration:\n\n")
+	for _, name := range mismatched {
+		sb.WriteString(fmt.Sprintf("  • %s\n", name))
+	}
+
+	sb.WriteString(fmt.Sprintf("\nCurrent config expects cluster names starting with: %s\n\n", expectedPrefix))
+
+	sb.WriteString("This typically happens when CAPZ_USER was changed without cleaning up\n")
+	sb.WriteString("the previous cluster resources. Deploying new clusters alongside old ones\n")
+	sb.WriteString("can cause conflicts and unexpected behavior.\n\n")
+
+	sb.WriteString("TO CLEAN UP:\n\n")
+
+	// Single cluster cleanup
+	if len(mismatched) == 1 {
+		sb.WriteString(fmt.Sprintf("  kubectl delete cluster %s -n %s\n\n", mismatched[0], namespace))
+	} else {
+		// Multiple clusters
+		sb.WriteString(fmt.Sprintf("  # Delete specific cluster:\n"))
+		sb.WriteString(fmt.Sprintf("  kubectl delete cluster %s -n %s\n\n", mismatched[0], namespace))
+		sb.WriteString(fmt.Sprintf("  # Or delete all clusters in namespace:\n"))
+		sb.WriteString(fmt.Sprintf("  kubectl delete cluster --all -n %s\n\n", namespace))
+	}
+
+	sb.WriteString("  # Or use make clean for complete cleanup:\n")
+	sb.WriteString("  make clean\n\n")
+
+	sb.WriteString("After cleanup, re-run the tests.\n")
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	return sb.String()
+}
+
+// =============================================================================
+// MCE (MultiClusterEngine) Helper Functions
+// =============================================================================
+
+// IsMCECluster checks if the external cluster has MCE (MultiClusterEngine) installed.
+// Returns true if the 'multiclusterengine' resource exists, false otherwise.
+func IsMCECluster(t *testing.T, kubeContext string) bool {
+	t.Helper()
+	_, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext,
+		"get", "mce", "multiclusterengine", "-o", "name")
+	return err == nil
+}
+
+// MCEComponentStatus represents the status of an MCE component
+type MCEComponentStatus struct {
+	Name    string
+	Enabled bool
+	Exists  bool
+}
+
+// GetMCEComponentStatus retrieves the enabled status of a specific MCE component.
+// Returns the component status or an error if the MCE resource cannot be queried.
+func GetMCEComponentStatus(t *testing.T, kubeContext, componentName string) (*MCEComponentStatus, error) {
+	t.Helper()
+
+	// Query component enabled status using jsonpath
+	output, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext,
+		"get", "mce", "multiclusterengine", "-o",
+		fmt.Sprintf("jsonpath={.spec.overrides.components[?(@.name=='%s')].enabled}", componentName))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query MCE component status: %w", err)
+	}
+
+	status := &MCEComponentStatus{
+		Name:   componentName,
+		Exists: output != "",
+	}
+
+	if output == "true" {
+		status.Enabled = true
+	}
+
+	return status, nil
+}
+
+// SetMCEComponentState sets the enabled state of a specific MCE component.
+// This uses jq to transform the components array while preserving other settings.
+func SetMCEComponentState(t *testing.T, kubeContext, componentName string, enabled bool) error {
+	t.Helper()
+
+	action := "Disabling"
+	if enabled {
+		action = "Enabling"
+	}
+
+	PrintToTTY("%s MCE component: %s\n", action, componentName)
+	t.Logf("%s MCE component: %s", action, componentName)
+
+	// Get current MCE resource as JSON
+	currentOutput, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext,
+		"get", "mce", "multiclusterengine", "-o", "json")
+	if err != nil {
+		return fmt.Errorf("failed to get MCE resource: %w", err)
+	}
+
+	// Build the jq expression to update the specific component
+	jqExpr := fmt.Sprintf(
+		`.spec.overrides.components | map(if .name == "%s" then .enabled = %t else . end)`,
+		componentName, enabled)
+
+	// Use jq to transform the components array
+	jqCmd := exec.Command("jq", "-c", jqExpr)
+	jqCmd.Stdin = strings.NewReader(currentOutput)
+	transformedBytes, err := jqCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to transform MCE components with jq: %w", err)
+	}
+	transformed := strings.TrimSpace(string(transformedBytes))
+
+	// Build the patch JSON
+	patchJSON := fmt.Sprintf(`{"spec":{"overrides":{"components":%s}}}`, transformed)
+
+	// Apply the patch
+	output, err := RunCommand(t, "kubectl", "--context", kubeContext,
+		"patch", "mce", "multiclusterengine", "--type=merge", "-p", patchJSON)
+	if err != nil {
+		return fmt.Errorf("failed to patch MCE resource: %w\nOutput: %s", err, output)
+	}
+
+	stateStr := "disabled"
+	if enabled {
+		stateStr = "enabled"
+	}
+	PrintToTTY("✅ MCE component %s %s successfully\n", componentName, stateStr)
+	t.Logf("MCE component %s %s successfully", componentName, stateStr)
+	return nil
+}
+
+// EnableMCEComponent enables a specific MCE component by patching the multiclusterengine resource.
+// This uses jq to transform the components array while preserving other settings.
+func EnableMCEComponent(t *testing.T, kubeContext, componentName string) error {
+	t.Helper()
+
+	PrintToTTY("Enabling MCE component: %s\n", componentName)
+	t.Logf("Enabling MCE component: %s", componentName)
+
+	// Get current MCE resource as JSON
+	currentOutput, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext,
+		"get", "mce", "multiclusterengine", "-o", "json")
+	if err != nil {
+		return fmt.Errorf("failed to get MCE resource: %w", err)
+	}
+
+	// Build the jq expression to update the specific component
+	jqExpr := fmt.Sprintf(
+		`.spec.overrides.components | map(if .name == "%s" then .enabled = true else . end)`,
+		componentName)
+
+	// Use jq to transform the components array
+	jqCmd := exec.Command("jq", "-c", jqExpr)
+	jqCmd.Stdin = strings.NewReader(currentOutput)
+	transformedBytes, err := jqCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to transform MCE components with jq: %w", err)
+	}
+	transformed := strings.TrimSpace(string(transformedBytes))
+
+	// Build the patch JSON
+	patchJSON := fmt.Sprintf(`{"spec":{"overrides":{"components":%s}}}`, transformed)
+
+	// Apply the patch
+	output, err := RunCommand(t, "kubectl", "--context", kubeContext,
+		"patch", "mce", "multiclusterengine", "--type=merge", "-p", patchJSON)
+	if err != nil {
+		return fmt.Errorf("failed to patch MCE resource: %w\nOutput: %s", err, output)
+	}
+
+	PrintToTTY("✅ MCE component %s enabled successfully\n", componentName)
+	t.Logf("MCE component %s enabled successfully", componentName)
+	return nil
+}
+
+// WaitForMCEController waits for a controller deployment to become available after MCE enablement.
+// Returns nil when the controller is available, or an error if timeout is reached.
+func WaitForMCEController(t *testing.T, kubeContext, namespace, deploymentName string, timeout time.Duration) error {
+	t.Helper()
+
+	if timeout == 0 {
+		timeout = DefaultMCEEnablementTimeout
+	}
+
+	pollInterval := 15 * time.Second
+	startTime := time.Now()
+
+	PrintToTTY("\n=== Waiting for MCE controller: %s ===\n", deploymentName)
+	PrintToTTY("Namespace: %s | Timeout: %v\n\n", namespace, timeout)
+
+	iteration := 0
+	for {
+		elapsed := time.Since(startTime)
+
+		if elapsed > timeout {
+			return fmt.Errorf("timeout waiting for MCE controller %s after %v", deploymentName, elapsed.Round(time.Second))
+		}
+
+		iteration++
+
+		// Check if deployment exists and is available
+		output, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext,
+			"-n", namespace, "get", "deployment", deploymentName,
+			"-o", "jsonpath={.status.conditions[?(@.type=='Available')].status}")
+
+		if err != nil {
+			PrintToTTY("[%d] Deployment %s not found yet, waiting...\n", iteration, deploymentName)
+		} else if strings.TrimSpace(output) == "True" {
+			PrintToTTY("✅ MCE controller %s is available! (took %v)\n", deploymentName, elapsed.Round(time.Second))
+			return nil
+		} else {
+			PrintToTTY("[%d] Deployment %s status: %s\n", iteration, deploymentName, strings.TrimSpace(output))
+		}
+
+		time.Sleep(pollInterval)
+	}
 }

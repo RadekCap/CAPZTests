@@ -1,8 +1,10 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -16,19 +18,30 @@ const (
 	// scanning existing CRDs, applying missing ones, and restarting to pick up new CRDs.
 	DefaultASOControllerTimeout = 10 * time.Minute
 
+	// DefaultMCEEnablementTimeout is the default timeout for waiting after MCE component enablement.
+	// MCE components need time to deploy controllers, pull images, and initialize.
+	DefaultMCEEnablementTimeout = 15 * time.Minute
+
 	// DefaultCAPZUser is the default user identifier for CAPZ resources.
 	// Used in ClusterNamePrefix (for resource group naming) and User field.
 	// Extracted to a constant to ensure consistency across all usages.
-	DefaultCAPZUser = "rcapb"
+	DefaultCAPZUser = "rcapx"
 
 	// DefaultDeploymentEnv is the default deployment environment identifier.
 	// Used in ClusterNamePrefix and Environment field.
 	DefaultDeploymentEnv = "stage"
+
+	// MCE component names as used in mce.spec.overrides.components
+	MCEComponentCAPI = "cluster-api"
+	MCEComponentCAPZ = "cluster-api-provider-azure-preview"
 )
 
 var (
 	defaultRepoDir     string
 	defaultRepoDirOnce sync.Once
+
+	workloadClusterNamespace     string
+	workloadClusterNamespaceOnce sync.Once
 )
 
 // getDefaultRepoDir returns the default repository directory path.
@@ -49,6 +62,51 @@ func getDefaultRepoDir() string {
 	return defaultRepoDir
 }
 
+// getWorkloadClusterNamespace returns the namespace for workload cluster resources.
+// The namespace is unique per test run, combining the configured prefix with a timestamp.
+// Format: {prefix}-{YYYYMMDD-HHMMSS} (e.g., "capz-test-20260203-140812")
+// This namespace is passed as $NAMESPACE to the YAML generation script and used for
+// all Azure resource checks.
+//
+// Resolution order:
+// 1. WORKLOAD_CLUSTER_NAMESPACE env var (explicit override for resume scenarios)
+// 2. Existing deployment state file in RepoDir (auto-resume from previous run)
+// 3. Generate unique namespace using WORKLOAD_CLUSTER_NAMESPACE_PREFIX (default: "capz-test")
+//
+// The auto-resume from deployment state ensures that subsequent test phases
+// (run as separate go test invocations) use the same namespace as YAML generation.
+func getWorkloadClusterNamespace() string {
+	workloadClusterNamespaceOnce.Do(func() {
+		// Check if a full namespace is explicitly provided (for resume scenarios)
+		if ns := os.Getenv("WORKLOAD_CLUSTER_NAMESPACE"); ns != "" {
+			workloadClusterNamespace = ns
+			return
+		}
+
+		// Check for existing deployment state file in RepoDir
+		// This handles the case where YAML generation ran in a previous test invocation
+		// and we need to use the same namespace for subsequent phases
+		repoDir := getDefaultRepoDir()
+		stateFilePath := filepath.Join(repoDir, ".deployment-state.json")
+		if data, err := os.ReadFile(stateFilePath); err == nil {
+			var state struct {
+				WorkloadClusterNamespace string `json:"workload_cluster_namespace"`
+			}
+			if err := json.Unmarshal(data, &state); err == nil && state.WorkloadClusterNamespace != "" {
+				workloadClusterNamespace = state.WorkloadClusterNamespace
+				return
+			}
+		}
+
+		// Generate unique namespace with timestamp for fresh runs
+		prefix := GetEnvOrDefault("WORKLOAD_CLUSTER_NAMESPACE_PREFIX", "capz-test")
+		timestamp := time.Now().Format("20060102-150405")
+		workloadClusterNamespace = fmt.Sprintf("%s-%s", prefix, timestamp)
+	})
+
+	return workloadClusterNamespace
+}
+
 // TestConfig holds configuration for ARO-CAPZ tests
 type TestConfig struct {
 	// Repository configuration
@@ -60,14 +118,22 @@ type TestConfig struct {
 	ManagementClusterName string
 	WorkloadClusterName   string
 	ClusterNamePrefix     string // Used as CS_CLUSTER_NAME for YAML generation; resource group becomes ${ClusterNamePrefix}-resgroup
-	OpenShiftVersion      string
+	OCPVersion            string
 	Region                string
 	AzureSubscriptionName string // Azure subscription name (from AZURE_SUBSCRIPTION_NAME env var)
 	Environment           string
-	CAPZUser              string // User identifier for CAPZ resources (from CAPZ_USER env var)
-	TestNamespace         string // Namespace for testing resources (default: "default")
-	CAPINamespace         string // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" when USE_K8S=true)
+	CAPZUser                 string // User identifier for CAPZ resources (from CAPZ_USER env var)
+	WorkloadClusterNamespace string // Namespace for workload cluster resources on management cluster (unique per test run)
+	CAPINamespace            string // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" when USE_K8S=true)
 	CAPZNamespace         string // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" when USE_K8S=true)
+
+	// External cluster configuration
+	// UseKubeconfig is the path to an external kubeconfig file.
+	// When set, the test suite runs in "external cluster mode":
+	// - Skips Kind cluster creation
+	// - Validates pre-installed controllers
+	// - Uses current-context from the kubeconfig
+	UseKubeconfig string
 
 	// Paths
 	ClusterctlBinPath string
@@ -77,10 +143,26 @@ type TestConfig struct {
 	// Timeouts
 	DeploymentTimeout    time.Duration
 	ASOControllerTimeout time.Duration
+
+	// MCE (MultiClusterEngine) configuration
+	// MCEAutoEnable controls whether to automatically enable MCE CAPI/CAPZ components
+	// if they are not found on an external cluster. Default: true when IsExternalCluster().
+	MCEAutoEnable bool
+	// MCEEnablementTimeout is the timeout for waiting after MCE component enablement.
+	// Controllers need time to be deployed, images pulled, and pods started.
+	MCEEnablementTimeout time.Duration
 }
 
 // NewTestConfig creates a new test configuration with defaults
 func NewTestConfig() *TestConfig {
+	useKubeconfig := os.Getenv("USE_KUBECONFIG")
+
+	// When using external kubeconfig, default to MCE namespaces (USE_K8S=true)
+	// This triggers multicluster-engine namespace for all controllers
+	if useKubeconfig != "" && os.Getenv("USE_K8S") == "" {
+		os.Setenv("USE_K8S", "true")
+	}
+
 	return &TestConfig{
 		// Repository defaults
 		RepoURL:    GetEnvOrDefault("ARO_REPO_URL", "https://github.com/stolostron/cluster-api-installer"),
@@ -91,14 +173,17 @@ func NewTestConfig() *TestConfig {
 		ManagementClusterName: GetEnvOrDefault("MANAGEMENT_CLUSTER_NAME", "capz-tests-stage"),
 		WorkloadClusterName:   GetEnvOrDefault("WORKLOAD_CLUSTER_NAME", "capz-tests-cluster"),
 		ClusterNamePrefix:     GetEnvOrDefault("CS_CLUSTER_NAME", fmt.Sprintf("%s-%s", GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser), GetEnvOrDefault("DEPLOYMENT_ENV", DefaultDeploymentEnv))),
-		OpenShiftVersion:      GetEnvOrDefault("OPENSHIFT_VERSION", "4.21"),
+		OCPVersion:            GetEnvOrDefault("OCP_VERSION", "4.21"),
 		Region:                GetEnvOrDefault("REGION", "uksouth"),
 		AzureSubscriptionName: os.Getenv("AZURE_SUBSCRIPTION_NAME"),
 		Environment:           GetEnvOrDefault("DEPLOYMENT_ENV", DefaultDeploymentEnv),
-		CAPZUser:              GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser),
-		TestNamespace:         GetEnvOrDefault("TEST_NAMESPACE", "default"),
-		CAPINamespace:         getControllerNamespace("CAPI_NAMESPACE", "capi-system"),
+		CAPZUser:                 GetEnvOrDefault("CAPZ_USER", DefaultCAPZUser),
+		WorkloadClusterNamespace: getWorkloadClusterNamespace(),
+		CAPINamespace:            getControllerNamespace("CAPI_NAMESPACE", "capi-system"),
 		CAPZNamespace:         getControllerNamespace("CAPZ_NAMESPACE", "capz-system"),
+
+		// External cluster
+		UseKubeconfig: useKubeconfig,
 
 		// Paths
 		ClusterctlBinPath: GetEnvOrDefault("CLUSTERCTL_BIN", "./bin/clusterctl"),
@@ -108,6 +193,10 @@ func NewTestConfig() *TestConfig {
 		// Timeouts
 		DeploymentTimeout:    parseDeploymentTimeout(),
 		ASOControllerTimeout: parseASOControllerTimeout(),
+
+		// MCE configuration
+		MCEAutoEnable:        parseMCEAutoEnable(useKubeconfig),
+		MCEEnablementTimeout: parseMCEEnablementTimeout(),
 	}
 }
 
@@ -162,6 +251,35 @@ func parseASOControllerTimeout() time.Duration {
 	return timeout
 }
 
+// parseMCEAutoEnable parses the MCE_AUTO_ENABLE environment variable.
+// Returns true (default) when using external kubeconfig, false otherwise.
+// Can be explicitly set to "false" to disable auto-enablement.
+func parseMCEAutoEnable(useKubeconfig string) bool {
+	envVal := os.Getenv("MCE_AUTO_ENABLE")
+	if envVal != "" {
+		return envVal == "true"
+	}
+	// Default to true only when using external kubeconfig
+	return useKubeconfig != ""
+}
+
+// parseMCEEnablementTimeout parses the MCE_ENABLEMENT_TIMEOUT environment variable.
+// Returns the parsed duration or defaults to DefaultMCEEnablementTimeout.
+// Logs a warning if the provided value is invalid.
+func parseMCEEnablementTimeout() time.Duration {
+	timeoutStr := os.Getenv("MCE_ENABLEMENT_TIMEOUT")
+	if timeoutStr == "" {
+		return DefaultMCEEnablementTimeout
+	}
+
+	timeout, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: invalid MCE_ENABLEMENT_TIMEOUT '%s', using default %v\n", timeoutStr, DefaultMCEEnablementTimeout)
+		return DefaultMCEEnablementTimeout
+	}
+	return timeout
+}
+
 // GetOutputDirName returns the output directory name for generated infrastructure files
 func (c *TestConfig) GetOutputDirName() string {
 	return fmt.Sprintf("%s-%s", c.WorkloadClusterName, c.Environment)
@@ -190,4 +308,20 @@ func (c *TestConfig) GetProvisionedClusterName() string {
 // GetAROYAMLPath returns the path to the generated aro.yaml file
 func (c *TestConfig) GetAROYAMLPath() string {
 	return fmt.Sprintf("%s/%s/aro.yaml", c.RepoDir, c.GetOutputDirName())
+}
+
+// IsExternalCluster returns true when using an external kubeconfig file
+// instead of creating a local Kind cluster.
+func (c *TestConfig) IsExternalCluster() bool {
+	return c.UseKubeconfig != ""
+}
+
+// GetKubeContext returns the kubectl context to use for the management cluster.
+// For external clusters, extracts current-context from the kubeconfig file.
+// For Kind clusters, returns "kind-{ManagementClusterName}".
+func (c *TestConfig) GetKubeContext() string {
+	if c.IsExternalCluster() {
+		return ExtractCurrentContext(c.UseKubeconfig)
+	}
+	return fmt.Sprintf("kind-%s", c.ManagementClusterName)
 }

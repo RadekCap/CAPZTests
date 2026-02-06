@@ -12,7 +12,13 @@ import (
 // CAPI/CAPZ to clean up all associated resources including Azure resources.
 func TestDeletion_DeleteCluster(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Get the provisioned cluster name from aro.yaml
 	provisionedClusterName := config.GetProvisionedClusterName()
@@ -21,20 +27,20 @@ func TestDeletion_DeleteCluster(t *testing.T) {
 		"Delete the workload cluster from the management cluster")
 
 	// Check if cluster exists before attempting deletion
-	_, err := RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace,
+	_, err := RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace,
 		"get", "cluster", provisionedClusterName)
 	if err != nil {
-		PrintToTTY("⚠️  Cluster '%s' not found in namespace '%s'\n", provisionedClusterName, config.TestNamespace)
+		PrintToTTY("⚠️  Cluster '%s' not found in namespace '%s'\n", provisionedClusterName, config.WorkloadClusterNamespace)
 		t.Skipf("Cluster '%s' not found (may not have been deployed or already deleted)", provisionedClusterName)
 	}
 
-	PrintToTTY("📋 Cluster '%s' found in namespace '%s'\n", provisionedClusterName, config.TestNamespace)
+	PrintToTTY("📋 Cluster '%s' found in namespace '%s'\n", provisionedClusterName, config.WorkloadClusterNamespace)
 	PrintToTTY("🗑️  Initiating cluster deletion...\n\n")
-	t.Logf("Deleting cluster '%s' from namespace '%s'", provisionedClusterName, config.TestNamespace)
+	t.Logf("Deleting cluster '%s' from namespace '%s'", provisionedClusterName, config.WorkloadClusterNamespace)
 
 	// Delete the cluster resource - this triggers cascading deletion of all related resources
 	// Use --wait=false to return immediately so the next test can monitor deletion progress
-	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace,
+	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace,
 		"delete", "cluster", provisionedClusterName, "--wait=false")
 	if err != nil {
 		PrintToTTY("❌ Failed to delete cluster: %v\n", err)
@@ -52,7 +58,13 @@ func TestDeletion_DeleteCluster(t *testing.T) {
 // progress information about all resources being deleted.
 func TestDeletion_WaitForClusterDeletion(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Get the provisioned cluster name from aro.yaml
 	provisionedClusterName := config.GetProvisionedClusterName()
@@ -69,9 +81,9 @@ func TestDeletion_WaitForClusterDeletion(t *testing.T) {
 	startTime := time.Now()
 
 	PrintToTTY("⏳ Waiting for cluster '%s' to be deleted...\n", provisionedClusterName)
-	PrintToTTY("Namespace: %s | Timeout: %v | Poll interval: %v\n", config.TestNamespace, timeout, pollInterval)
+	PrintToTTY("Namespace: %s | Timeout: %v | Poll interval: %v\n", config.WorkloadClusterNamespace, timeout, pollInterval)
 	PrintToTTY("Azure Resource Group: %s\n\n", resourceGroup)
-	t.Logf("Waiting for cluster '%s' deletion (namespace: %s, timeout: %v)...", provisionedClusterName, config.TestNamespace, timeout)
+	t.Logf("Waiting for cluster '%s' deletion (namespace: %s, timeout: %v)...", provisionedClusterName, config.WorkloadClusterNamespace, timeout)
 
 	iteration := 0
 	for {
@@ -94,9 +106,9 @@ func TestDeletion_WaitForClusterDeletion(t *testing.T) {
 				"To manually clean up:\n"+
 				"  make clean-azure  # Removes Azure resources",
 				provisionedClusterName, elapsed.Round(time.Second),
-				context, config.TestNamespace, provisionedClusterName,
-				context, config.TestNamespace, provisionedClusterName,
-				context, config.TestNamespace,
+				context, config.WorkloadClusterNamespace, provisionedClusterName,
+				context, config.WorkloadClusterNamespace, provisionedClusterName,
+				context, config.WorkloadClusterNamespace,
 				resourceGroup)
 			return
 		}
@@ -104,7 +116,7 @@ func TestDeletion_WaitForClusterDeletion(t *testing.T) {
 		iteration++
 
 		// Get comprehensive deletion status
-		status := GetDeletionResourceStatus(t, context, config.TestNamespace, provisionedClusterName, resourceGroup)
+		status := GetDeletionResourceStatus(t, context, config.WorkloadClusterNamespace, provisionedClusterName, resourceGroup)
 
 		// Check if cluster is fully deleted
 		if !status.ClusterExists {
@@ -126,15 +138,21 @@ func TestDeletion_WaitForClusterDeletion(t *testing.T) {
 // TestDeletion_VerifyAROControlPlaneDeletion verifies the AROControlPlane resource is deleted.
 func TestDeletion_VerifyAROControlPlaneDeletion(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestDeletion_VerifyAROControlPlaneDeletion",
 		"Verify AROControlPlane resource is deleted")
 
-	PrintToTTY("Checking for remaining AROControlPlane resources in namespace '%s'...\n", config.TestNamespace)
-	t.Logf("Checking for remaining AROControlPlane resources in namespace '%s'", config.TestNamespace)
+	PrintToTTY("Checking for remaining AROControlPlane resources in namespace '%s'...\n", config.WorkloadClusterNamespace)
+	t.Logf("Checking for remaining AROControlPlane resources in namespace '%s'", config.WorkloadClusterNamespace)
 
-	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace,
+	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace,
 		"get", "arocontrolplane", "--ignore-not-found")
 	if err != nil {
 		PrintToTTY("⚠️  Error checking AROControlPlane: %v\n\n", err)
@@ -154,15 +172,21 @@ func TestDeletion_VerifyAROControlPlaneDeletion(t *testing.T) {
 // TestDeletion_VerifyMachinePoolDeletion verifies machine pool resources are deleted.
 func TestDeletion_VerifyMachinePoolDeletion(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestDeletion_VerifyMachinePoolDeletion",
 		"Verify machine pool resources are deleted")
 
-	PrintToTTY("Checking for remaining MachinePool resources in namespace '%s'...\n", config.TestNamespace)
-	t.Logf("Checking for remaining MachinePool resources in namespace '%s'", config.TestNamespace)
+	PrintToTTY("Checking for remaining MachinePool resources in namespace '%s'...\n", config.WorkloadClusterNamespace)
+	t.Logf("Checking for remaining MachinePool resources in namespace '%s'", config.WorkloadClusterNamespace)
 
-	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace,
+	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace,
 		"get", "machinepool", "--ignore-not-found")
 	if err != nil {
 		PrintToTTY("⚠️  Error checking MachinePool: %v\n\n", err)
@@ -240,7 +264,13 @@ func TestDeletion_VerifyAzureResourcesDeletion(t *testing.T) {
 // TestDeletion_Summary provides a summary of the deletion process.
 func TestDeletion_Summary(t *testing.T) {
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	PrintTestHeader(t, "TestDeletion_Summary",
 		"Summary of cluster deletion status")
@@ -249,7 +279,7 @@ func TestDeletion_Summary(t *testing.T) {
 	PrintToTTY("=== Deletion Summary ===\n\n")
 
 	// Check for any remaining clusters
-	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace,
+	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace,
 		"get", "clusters", "--ignore-not-found", "-o", "custom-columns=NAME:.metadata.name,PHASE:.status.phase")
 	if err != nil {
 		PrintToTTY("⚠️  Could not list clusters: %v\n\n", err)
@@ -260,7 +290,7 @@ func TestDeletion_Summary(t *testing.T) {
 	}
 
 	// Check for remaining CAPI resources
-	output, err = RunCommandQuiet(t, "kubectl", "--context", context, "-n", config.TestNamespace,
+	output, err = RunCommandQuiet(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace,
 		"get", "arocontrolplane,machinepool", "--ignore-not-found")
 	if err == nil && strings.TrimSpace(output) == "" {
 		PrintToTTY("✅ All CAPI resources deleted\n")

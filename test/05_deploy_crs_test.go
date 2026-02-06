@@ -9,10 +9,129 @@ import (
 	"time"
 )
 
+// TestDeployment_00_CreateNamespace creates the workload cluster namespace before deploying resources.
+// The namespace is unique per test run (prefix + timestamp) to allow parallel test runs
+// and easy cleanup. This namespace is where CAPI CRs (Cluster, AROControlPlane, MachinePool)
+// are deployed, which then create Azure resources.
+func TestDeployment_00_CreateNamespace(t *testing.T) {
+	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
+
+	PrintTestHeader(t, "TestDeployment_00_CreateNamespace",
+		fmt.Sprintf("Create test namespace: %s", config.WorkloadClusterNamespace))
+
+	PrintToTTY("\n=== Creating test namespace ===\n")
+	PrintToTTY("Namespace: %s\n", config.WorkloadClusterNamespace)
+	PrintToTTY("Context: %s\n\n", context)
+
+	// Check if namespace already exists
+	_, err := RunCommandQuiet(t, "kubectl", "--context", context, "get", "namespace", config.WorkloadClusterNamespace)
+	if err == nil {
+		PrintToTTY("✅ Namespace '%s' already exists\n\n", config.WorkloadClusterNamespace)
+		t.Logf("Namespace '%s' already exists", config.WorkloadClusterNamespace)
+		return
+	}
+
+	// Create the namespace
+	PrintToTTY("Creating namespace '%s'...\n", config.WorkloadClusterNamespace)
+	output, err := RunCommand(t, "kubectl", "--context", context, "create", "namespace", config.WorkloadClusterNamespace)
+	if err != nil {
+		PrintToTTY("❌ Failed to create namespace: %v\n", err)
+		t.Fatalf("Failed to create namespace '%s': %v\nOutput: %s", config.WorkloadClusterNamespace, err, output)
+		return
+	}
+
+	PrintToTTY("✅ Namespace '%s' created successfully\n\n", config.WorkloadClusterNamespace)
+	t.Logf("Created namespace: %s", config.WorkloadClusterNamespace)
+
+	// Add labels for easy identification and cleanup
+	PrintToTTY("Adding labels to namespace...\n")
+	_, err = RunCommand(t, "kubectl", "--context", context, "label", "namespace", config.WorkloadClusterNamespace,
+		"capz-test=true",
+		fmt.Sprintf("capz-test-prefix=%s", GetEnvOrDefault("WORKLOAD_CLUSTER_NAMESPACE_PREFIX", "capz-test")),
+		"--overwrite")
+	if err != nil {
+		PrintToTTY("⚠️  Failed to add labels (non-fatal): %v\n", err)
+		t.Logf("Warning: failed to add labels to namespace: %v", err)
+	} else {
+		PrintToTTY("✅ Labels added to namespace\n\n")
+	}
+}
+
+// TestDeployment_01_CheckExistingClusters checks for existing Cluster CRs that don't match current config.
+// This fail-fast check prevents deploying new clusters alongside stale resources from previous
+// configurations (e.g., when CAPZ_USER was changed without cleanup).
+func TestDeployment_01_CheckExistingClusters(t *testing.T) {
+
+	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
+
+	PrintToTTY("\n=== Checking for existing Cluster resources ===\n")
+	PrintToTTY("Namespace: %s\n", config.WorkloadClusterNamespace)
+	PrintToTTY("Expected prefix: %s\n\n", config.ClusterNamePrefix)
+
+	// Check for existing clusters that don't match current config
+	mismatched, err := CheckForMismatchedClusters(t, context, config.WorkloadClusterNamespace, config.ClusterNamePrefix)
+	if err != nil {
+		// Non-fatal: log warning and continue if check fails
+		// This allows tests to proceed on clusters without CAPI installed
+		PrintToTTY("⚠️  Could not check existing clusters: %v\n", err)
+		t.Logf("Warning: Could not check existing clusters: %v", err)
+		PrintToTTY("Continuing with deployment...\n\n")
+		return
+	}
+
+	// Also get all existing clusters for informational purposes
+	existing, _ := GetExistingClusterNames(t, context, config.WorkloadClusterNamespace)
+	if len(existing) > 0 {
+		PrintToTTY("Found %d existing Cluster resource(s):\n", len(existing))
+		for _, name := range existing {
+			if strings.HasPrefix(name, config.ClusterNamePrefix) {
+				PrintToTTY("  ✅ %s (matches current config)\n", name)
+			} else {
+				PrintToTTY("  ❌ %s (does NOT match current config)\n", name)
+			}
+		}
+		PrintToTTY("\n")
+	} else {
+		PrintToTTY("✅ No existing Cluster resources found\n\n")
+	}
+
+	// Fail if there are mismatched clusters
+	if len(mismatched) > 0 {
+		errorMsg := FormatMismatchedClustersError(mismatched, config.ClusterNamePrefix, config.WorkloadClusterNamespace)
+		PrintToTTY("%s", errorMsg)
+
+		t.Fatalf("Mismatched Cluster CRs found. Clean up existing clusters before deploying with new CAPZ_USER.\n"+
+			"Found %d cluster(s) not matching prefix '%s': %v",
+			len(mismatched), config.ClusterNamePrefix, mismatched)
+	}
+
+	PrintToTTY("✅ All existing clusters match current configuration\n\n")
+}
+
 // TestDeployment_ApplyResources tests applying generated resources to the cluster
 func TestDeployment_ApplyResources(t *testing.T) {
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
@@ -29,8 +148,8 @@ func TestDeployment_ApplyResources(t *testing.T) {
 		"aro.yaml",
 	}
 
-	// Set kubectl context to Kind cluster
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	// Set kubectl context
+	context := config.GetKubeContext()
 
 	// Verify cluster is healthy before applying resources
 	// This addresses connection issues after long controller startup periods (issue #265)
@@ -68,6 +187,12 @@ func TestDeployment_ApplyCredentialsYAML(t *testing.T) {
 	t.Logf("Applying %s", file)
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
@@ -86,7 +211,7 @@ func TestDeployment_ApplyCredentialsYAML(t *testing.T) {
 		return
 	}
 
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 
 	// Verify cluster is healthy before applying resources
 	// This addresses connection issues after long controller startup periods (issue #265)
@@ -112,6 +237,12 @@ func TestDeployment_ApplyInfrastructureSecretsYAML(t *testing.T) {
 	t.Logf("Applying %s (infrastructure secrets)", file)
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
@@ -130,7 +261,7 @@ func TestDeployment_ApplyInfrastructureSecretsYAML(t *testing.T) {
 		return
 	}
 
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 
 	// Verify cluster is healthy before applying resources
 	// This addresses connection issues after long controller startup periods (issue #265)
@@ -156,6 +287,12 @@ func TestDeployment_ApplyAROClusterYAML(t *testing.T) {
 	t.Logf("Applying %s (ARO cluster configuration)", file)
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
 	outputDir := filepath.Join(config.RepoDir, config.GetOutputDirName())
 
 	if !DirExists(outputDir) {
@@ -174,7 +311,7 @@ func TestDeployment_ApplyAROClusterYAML(t *testing.T) {
 		return
 	}
 
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 
 	// Verify cluster is healthy before applying resources
 	// This addresses connection issues after long controller startup periods (issue #265)
@@ -198,6 +335,11 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 	PrintToTTY("\n=== Starting Cluster Monitoring Test ===\n")
 
 	config := NewTestConfig()
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
 
 	PrintToTTY("Checking prerequisites...\n")
 	if !DirExists(config.RepoDir) {
@@ -225,7 +367,7 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 	}
 
 	// Set kubectl context to Kind cluster
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+	context := config.GetKubeContext()
 	SetEnvVar(t, "KUBECONFIG", fmt.Sprintf("%s/.kube/config", os.Getenv("HOME")))
 
 	// First, check if cluster resource exists
@@ -233,12 +375,12 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 	provisionedClusterName := config.GetProvisionedClusterName()
 	PrintToTTY("\n=== Monitoring cluster deployment ===\n")
 	PrintToTTY("Cluster: %s\n", provisionedClusterName)
-	PrintToTTY("Namespace: %s\n", config.TestNamespace)
+	PrintToTTY("Namespace: %s\n", config.WorkloadClusterNamespace)
 	PrintToTTY("Context: %s\n", context)
 	PrintToTTY("\nChecking if cluster resource exists...\n")
-	t.Logf("Checking for cluster resource: %s (namespace: %s)", provisionedClusterName, config.TestNamespace)
+	t.Logf("Checking for cluster resource: %s (namespace: %s)", provisionedClusterName, config.WorkloadClusterNamespace)
 
-	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace, "get", "cluster", provisionedClusterName)
+	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace, "get", "cluster", provisionedClusterName)
 	if err != nil {
 		PrintToTTY("⚠️  Cluster resource not found (may not be deployed yet)\n\n")
 		t.Skipf("Cluster resource not found (may not be deployed yet): %v", err)
@@ -249,11 +391,11 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 
 	// Use clusterctl to describe the cluster
 	PrintToTTY("\n📊 Fetching cluster status with clusterctl...\n")
-	PrintToTTY("Running: %s describe cluster %s -n %s --show-conditions=all\n", clusterctlPath, provisionedClusterName, config.TestNamespace)
+	PrintToTTY("Running: %s describe cluster %s -n %s --show-conditions=all\n", clusterctlPath, provisionedClusterName, config.WorkloadClusterNamespace)
 	PrintToTTY("This may take a few moments...\n")
 	t.Logf("Monitoring cluster deployment status using clusterctl...")
 
-	output, err = RunCommand(t, clusterctlPath, "describe", "cluster", provisionedClusterName, "-n", config.TestNamespace, "--show-conditions=all")
+	output, err = RunCommand(t, clusterctlPath, "describe", "cluster", provisionedClusterName, "-n", config.WorkloadClusterNamespace, "--show-conditions=all")
 	if err != nil {
 		PrintToTTY("\n⚠️  clusterctl describe failed (cluster may still be initializing)\n")
 		PrintToTTY("Error: %v\n\n", err)
@@ -271,12 +413,18 @@ func TestDeployment_MonitorCluster(t *testing.T) {
 func TestDeployment_WaitForControlPlane(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Get the specific AROControlPlane name for the cluster being deployed
 	// This prevents checking the wrong control plane when multiple clusters exist (issue #355)
 	provisionedClusterName := config.GetProvisionedClusterName()
-	aroControlPlaneName := fmt.Sprintf("%s-control-plane", provisionedClusterName)
+	aroControlPlaneName := provisionedClusterName
 
 	// Wait for control plane to be ready (with configurable timeout)
 	timeout := config.DeploymentTimeout
@@ -287,9 +435,9 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 	PrintToTTY("\n=== Waiting for control plane to be ready ===\n")
 	PrintToTTY("Cluster: %s\n", provisionedClusterName)
 	PrintToTTY("AROControlPlane: %s\n", aroControlPlaneName)
-	PrintToTTY("Namespace: %s\n", config.TestNamespace)
+	PrintToTTY("Namespace: %s\n", config.WorkloadClusterNamespace)
 	PrintToTTY("Timeout: %v | Poll interval: %v\n\n", timeout, pollInterval)
-	t.Logf("Waiting for control plane to be ready (namespace: %s, timeout: %v)...", config.TestNamespace, timeout)
+	t.Logf("Waiting for control plane to be ready (namespace: %s, timeout: %v)...", config.WorkloadClusterNamespace, timeout)
 
 	iteration := 0
 	for {
@@ -312,8 +460,8 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 				"  - Invalid Azure credentials or permissions\n\n"+
 				"To increase timeout: export DEPLOYMENT_TIMEOUT=60m",
 				elapsed.Round(time.Second),
-				context, config.TestNamespace, aroControlPlaneName,
-				context, config.TestNamespace, provisionedClusterName,
+				context, config.WorkloadClusterNamespace, aroControlPlaneName,
+				context, config.WorkloadClusterNamespace, provisionedClusterName,
 				context,
 				config.ClusterNamePrefix)
 			return
@@ -327,7 +475,7 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 		// ARO uses AROControlPlane, not kubeadmcontrolplane
 		// Query the specific AROControlPlane for this cluster (issue #355)
 		output, err := RunCommand(t, "kubectl", "--context", context, "get",
-			"arocontrolplane", aroControlPlaneName, "-n", config.TestNamespace, "-o", "jsonpath={.status.ready}")
+			"arocontrolplane", aroControlPlaneName, "-n", config.WorkloadClusterNamespace, "-o", "jsonpath={.status.ready}")
 
 		// Print the result of the check
 		if err != nil {
@@ -346,7 +494,7 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 		// Fetch and display AROControlPlane conditions for better visibility
 		// Query the specific AROControlPlane for this cluster (issue #355)
 		conditionsOutput, condErr := RunCommandQuiet(t, "kubectl", "--context", context, "get",
-			"arocontrolplane", aroControlPlaneName, "-n", config.TestNamespace, "-o", "jsonpath={.status.conditions}")
+			"arocontrolplane", aroControlPlaneName, "-n", config.WorkloadClusterNamespace, "-o", "jsonpath={.status.conditions}")
 		if condErr == nil && strings.TrimSpace(conditionsOutput) != "" {
 			PrintToTTY("[%d] 📋 AROControlPlane conditions:\n", iteration)
 			PrintToTTY("%s", FormatAROControlPlaneConditions(conditionsOutput))
@@ -363,20 +511,26 @@ func TestDeployment_WaitForControlPlane(t *testing.T) {
 func TestDeployment_CheckClusterConditions(t *testing.T) {
 
 	config := NewTestConfig()
-	context := fmt.Sprintf("kind-%s", config.ManagementClusterName)
+
+	// Set KUBECONFIG for external cluster mode
+	if config.IsExternalCluster() {
+		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
+	}
+
+	context := config.GetKubeContext()
 
 	// Use the provisioned cluster name from aro.yaml
 	provisionedClusterName := config.GetProvisionedClusterName()
 
 	PrintToTTY("\n=== Checking cluster conditions ===\n")
 	PrintToTTY("Cluster: %s\n", provisionedClusterName)
-	PrintToTTY("Namespace: %s\n\n", config.TestNamespace)
-	t.Logf("Checking cluster conditions (namespace: %s)...", config.TestNamespace)
+	PrintToTTY("Namespace: %s\n\n", config.WorkloadClusterNamespace)
+	t.Logf("Checking cluster conditions (namespace: %s)...", config.WorkloadClusterNamespace)
 
 	// Check cluster status
 	PrintToTTY("Fetching cluster status...\n")
 
-	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace, "get", "cluster", provisionedClusterName, "-o", "yaml")
+	output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace, "get", "cluster", provisionedClusterName, "-o", "yaml")
 	if err != nil {
 		PrintToTTY("❌ Failed to get cluster status: %v\n\n", err)
 		t.Errorf("Failed to get cluster status: %v", err)
@@ -397,7 +551,7 @@ func TestDeployment_CheckClusterConditions(t *testing.T) {
 	// Check for infrastructure ready condition
 	PrintToTTY("Checking InfrastructureReady condition...\n")
 
-	output, err = RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace, "get", "cluster", provisionedClusterName,
+	output, err = RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace, "get", "cluster", provisionedClusterName,
 		"-o", "jsonpath={.status.conditions[?(@.type=='InfrastructureReady')].status}")
 
 	if err == nil && strings.TrimSpace(output) != "" {
@@ -408,7 +562,7 @@ func TestDeployment_CheckClusterConditions(t *testing.T) {
 	// Check for control plane ready condition
 	PrintToTTY("Checking ControlPlaneReady condition...\n")
 
-	output, err = RunCommand(t, "kubectl", "--context", context, "-n", config.TestNamespace, "get", "cluster", provisionedClusterName,
+	output, err = RunCommand(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace, "get", "cluster", provisionedClusterName,
 		"-o", "jsonpath={.status.conditions[?(@.type=='ControlPlaneReady')].status}")
 
 	if err == nil && strings.TrimSpace(output) != "" {
