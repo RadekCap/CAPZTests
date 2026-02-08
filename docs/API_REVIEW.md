@@ -274,10 +274,15 @@ type TestConfig struct {
 
 2. **Parameter Order**: ✅ Consistent — `t *testing.T` always first when present.
 
-3. **New Internal Functions**: Appropriately unexported:
-   - `getWorkloadClusterNamespace()` - namespace resolution
-   - `parseMCEAutoEnable()` - config parsing
-   - `parseMCEEnablementTimeout()` - config parsing
+3. **Internal Functions**: Appropriately unexported:
+   - `openTTY()` - internal TTY handling
+   - `isWaitingCondition()` - internal condition checking
+   - `isRetryableKubectlError()` - internal retry logic
+   - `extractVersionFromImage()` - internal parsing
+   - `getControllerNamespace()` - internal config helper
+   - `getWorkloadClusterNamespace()` - namespace resolution (V1.1)
+   - `parseMCEAutoEnable()` - config parsing (V1.1)
+   - `parseMCEEnablementTimeout()` - config parsing (V1.1)
 
 ---
 
