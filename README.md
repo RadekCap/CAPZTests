@@ -96,7 +96,8 @@ Tests are configured via environment variables:
 - `AZURE_SUBSCRIPTION_NAME` - Azure subscription ID
 - `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`)
 - `CAPZ_USER` - User identifier for domain prefix (default: `rcap`)
-- `TEST_NAMESPACE` - Kubernetes namespace for testing resources (default: `default`). All resource checks will be scoped to this namespace.
+- `WORKLOAD_CLUSTER_NAMESPACE` - Namespace for workload cluster resources. If set, uses the exact value provided (for resume scenarios). If not set, auto-generates a unique namespace per test run using `${WORKLOAD_CLUSTER_NAMESPACE_PREFIX}-${TIMESTAMP}` format.
+- `WORKLOAD_CLUSTER_NAMESPACE_PREFIX` - Prefix for auto-generated namespace (default: `capz-test`). Only used when `WORKLOAD_CLUSTER_NAMESPACE` is not set.
 
 #### Naming Requirements (RFC 1123)
 
@@ -104,7 +105,8 @@ The following variables must be **RFC 1123 compliant** to avoid deployment failu
 - `CAPZ_USER`
 - `CS_CLUSTER_NAME`
 - `DEPLOYMENT_ENV`
-- `TEST_NAMESPACE`
+- `WORKLOAD_CLUSTER_NAMESPACE`
+- `WORKLOAD_CLUSTER_NAMESPACE_PREFIX`
 
 **RFC 1123 naming rules:**
 - Only lowercase alphanumeric characters and hyphens (`a-z`, `0-9`, `-`)

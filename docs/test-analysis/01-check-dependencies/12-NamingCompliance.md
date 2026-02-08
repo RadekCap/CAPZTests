@@ -26,7 +26,7 @@ Kubernetes resource names must follow RFC 1123 subdomain naming:
 | `CAPZ_USER` | `rcap` | User identifier for domain prefix |
 | `DEPLOYMENT_ENV` | `stage` | Environment identifier |
 | `CS_CLUSTER_NAME` | `${CAPZ_USER}-${DEPLOYMENT_ENV}` | Cluster name prefix |
-| `TEST_NAMESPACE` | `default` | Kubernetes namespace for testing |
+| `WORKLOAD_CLUSTER_NAMESPACE` | _(auto-generated)_ | Namespace for workload cluster resources |
 
 ---
 
@@ -48,8 +48,8 @@ Kubernetes resource names must follow RFC 1123 subdomain naming:
    - ValidateRFC1123Name(config.ClusterNamePrefix, "CS_CLUSTER_NAME")
    - Pass/Fail with details
 
-5. Validate TEST_NAMESPACE:
-   - ValidateRFC1123Name(config.TestNamespace, "TEST_NAMESPACE")
+5. Validate WORKLOAD_CLUSTER_NAMESPACE:
+   - ValidateRFC1123Name(config.WorkloadClusterNamespace, "WORKLOAD_CLUSTER_NAMESPACE")
    - Pass/Fail with details
 
 6. Cleanup:
@@ -95,8 +95,8 @@ This test catches naming issues in Phase 1 (seconds) instead of Phase 5 (45+ min
     01_check_dependencies_test.go:584: DEPLOYMENT_ENV 'stage' is RFC 1123 compliant
 === RUN   TestCheckDependencies_NamingCompliance/CS_CLUSTER_NAME
     01_check_dependencies_test.go:591: CS_CLUSTER_NAME 'rcap-stage' is RFC 1123 compliant
-=== RUN   TestCheckDependencies_NamingCompliance/TEST_NAMESPACE
-    01_check_dependencies_test.go:607: TEST_NAMESPACE 'default' is RFC 1123 compliant
+=== RUN   TestCheckDependencies_NamingCompliance/WORKLOAD_CLUSTER_NAMESPACE
+    01_check_dependencies_test.go:607: WORKLOAD_CLUSTER_NAMESPACE 'default' is RFC 1123 compliant
 --- PASS: TestCheckDependencies_NamingCompliance (0.00s)
 ```
 
@@ -127,7 +127,7 @@ To fix:
 echo "CAPZ_USER=$CAPZ_USER"
 echo "DEPLOYMENT_ENV=$DEPLOYMENT_ENV"
 echo "CS_CLUSTER_NAME=$CS_CLUSTER_NAME"
-echo "TEST_NAMESPACE=$TEST_NAMESPACE"
+echo "WORKLOAD_CLUSTER_NAMESPACE=$WORKLOAD_CLUSTER_NAMESPACE"
 
 # Fix invalid values (convert to lowercase, replace invalid chars)
 export CAPZ_USER=$(echo "$CAPZ_USER" | tr '[:upper:]' '[:lower:]' | tr '_' '-')

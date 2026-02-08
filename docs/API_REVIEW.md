@@ -1,20 +1,64 @@
-# API/Interface Contract Review for V1
+# API/Interface Contract Review
 
-> **Issue**: #395 - V1 Review: API/Interface Contract Review
-> **Priority**: HIGH
+> **V1 Issue**: #395 - V1 Review: API/Interface Contract Review
+> **V1.1 Issue**: ACM-29881 - V1.1 Review: API/Interface Contract Review
 > **Status**: Complete
 
-This document provides a comprehensive review of all public interfaces that will be difficult to change after v1. These contracts become the public API, and breaking changes will be disruptive to users.
+This document provides a comprehensive review of all public interfaces. These contracts become the public API, and breaking changes will be disruptive to users.
 
 ## Table of Contents
 
-1. [Environment Variables (Public API)](#environment-variables-public-api)
-2. [TestConfig Struct](#testconfig-struct)
-3. [Helper Functions](#helper-functions)
-4. [Makefile Targets](#makefile-targets)
-5. [Script Interfaces](#script-interfaces)
-6. [Exit Codes](#exit-codes)
-7. [Recommendations Summary](#recommendations-summary)
+1. [Breaking Changes (V1 → V1.1)](#breaking-changes-v1--v11)
+2. [Environment Variables (Public API)](#environment-variables-public-api)
+3. [TestConfig Struct](#testconfig-struct)
+4. [Helper Functions](#helper-functions)
+5. [Makefile Targets](#makefile-targets)
+6. [Script Interfaces](#script-interfaces)
+7. [Exit Codes](#exit-codes)
+8. [Recommendations Summary](#recommendations-summary)
+
+---
+
+## Breaking Changes (V1 → V1.1)
+
+### Environment Variable Renames
+
+| V1 Variable | V1.1 Variable | Migration |
+|-------------|---------------|-----------|
+| `OPENSHIFT_VERSION` | `OCP_VERSION` | Rename in your env/scripts |
+| `TEST_NAMESPACE` | `WORKLOAD_CLUSTER_NAMESPACE` | Rename; note that v1.1 auto-generates a unique namespace per run if not set |
+
+### Behavior Changes
+
+| Change | V1 Behavior | V1.1 Behavior |
+|--------|-------------|---------------|
+| Namespace | Static `TEST_NAMESPACE` (default: `default`) | Auto-generated unique namespace per test run (`capz-test-YYYYMMDD-HHMMSS`). Set `WORKLOAD_CLUSTER_NAMESPACE` to override. |
+| `TestNamespace` field | `TestConfig.TestNamespace` | Renamed to `TestConfig.WorkloadClusterNamespace` |
+
+### New Environment Variables (V1.1)
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `USE_KUBECONFIG` | No | _(unset)_ | Path to external kubeconfig; enables external cluster mode |
+| `WORKLOAD_CLUSTER_NAMESPACE` | No | _(auto-generated)_ | Explicit namespace override for resume scenarios |
+| `WORKLOAD_CLUSTER_NAMESPACE_PREFIX` | No | `capz-test` | Prefix for auto-generated namespace |
+| `MCE_AUTO_ENABLE` | No | `true` (when `USE_KUBECONFIG` set) | Auto-enable MCE CAPI/CAPZ components |
+| `MCE_ENABLEMENT_TIMEOUT` | No | `15m` | Timeout for MCE component enablement |
+
+### New TestConfig Methods (V1.1)
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `IsExternalCluster` | `() bool` | Returns true when using external kubeconfig |
+| `GetKubeContext` | `() string` | Returns kubectl context (Kind or external) |
+
+### New Constants (V1.1)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `MCEComponentCAPI` | `"cluster-api"` | MCE component name for CAPI |
+| `MCEComponentCAPZ` | `"cluster-api-provider-azure-preview"` | MCE component name for CAPZ |
+| `DefaultMCEEnablementTimeout` | `15 * time.Minute` | Default MCE enablement timeout |
 
 ---
 
@@ -50,13 +94,22 @@ This document provides a comprehensive review of all public interfaces that will
 |----------|---------------|--------|-------|
 | `MANAGEMENT_CLUSTER_NAME` | ✅ Approved | Good | Clear, descriptive, no abbreviations |
 | `WORKLOAD_CLUSTER_NAME` | ✅ Approved | Good | Clear, descriptive, no abbreviations |
-| `CS_CLUSTER_NAME` | ⚠️ Warning | Needs Review | **CS prefix unclear** - what does CS mean? |
-| `OCP_VERSION` | ✅ Approved | Good | Matches cluster-api-installer variable |
+| `CS_CLUSTER_NAME` | ⚠️ Warning | Acceptable | **CS** = **C**luster **S**ervice; documented in CLAUDE.md |
+| `OCP_VERSION` | ✅ Approved | Good | Matches cluster-api-installer variable. Renamed from `OPENSHIFT_VERSION` in v1.1 |
 | `REGION` | ✅ Approved | Good | Simple and clear |
 | `DEPLOYMENT_ENV` | ✅ Approved | Good | Clear abbreviation (ENV is well-known) |
 | `CAPZ_USER` | ✅ Approved | Good | Consistent with CAPZ terminology |
-| `TEST_NAMESPACE` | ✅ Approved | Good | Clear, follows K8s conventions |
+| `WORKLOAD_CLUSTER_NAMESPACE` | ✅ Approved | Good | Clear, follows `WORKLOAD_CLUSTER_*` prefix. Replaces `TEST_NAMESPACE` from v1 |
+| `WORKLOAD_CLUSTER_NAMESPACE_PREFIX` | ✅ Approved | Good | Consistent with `WORKLOAD_CLUSTER_*` family |
 | `DEPLOYMENT_TIMEOUT` | ✅ Approved | Good | Clear purpose, Go duration format |
+
+### External Cluster Variables (New in V1.1)
+
+| Variable | Review Status | Rating | Notes |
+|----------|---------------|--------|-------|
+| `USE_KUBECONFIG` | ✅ Approved | Good | Clear intent, file path value |
+| `MCE_AUTO_ENABLE` | ✅ Approved | Good | Clear boolean, `MCE_*` prefix consistent |
+| `MCE_ENABLEMENT_TIMEOUT` | ✅ Approved | Good | Consistent with `DEPLOYMENT_TIMEOUT` pattern |
 
 ### Controller Namespace Variables (Internal/Advanced)
 
@@ -64,7 +117,7 @@ This document provides a comprehensive review of all public interfaces that will
 |----------|---------------|--------|-------|
 | `CAPI_NAMESPACE` | ✅ Approved | Good | Clear controller namespace override |
 | `CAPZ_NAMESPACE` | ✅ Approved | Good | Consistent with CAPI_NAMESPACE |
-| `USE_K8S` | ⚠️ Warning | Needs Review | **Boolean naming** - should be `USE_K8S_MODE` or clearer |
+| `USE_K8S` | ⚠️ Warning | Acceptable | Auto-set when `USE_KUBECONFIG` is provided; naming kept for backward compatibility |
 | `ASO_CONTROLLER_TIMEOUT` | ✅ Approved | Good | Clear purpose, follows DEPLOYMENT_TIMEOUT pattern |
 
 ### Path Configuration Variables (Internal)
@@ -73,18 +126,16 @@ This document provides a comprehensive review of all public interfaces that will
 |----------|---------------|--------|-------|
 | `CLUSTERCTL_BIN` | ✅ Approved | Good | Clear purpose |
 | `SCRIPTS_PATH` | ✅ Approved | Good | Clear purpose |
-| `GEN_SCRIPT_PATH` | ⚠️ Warning | Needs Review | **Abbreviation** - consider `GENERATION_SCRIPT_PATH` |
+| `GEN_SCRIPT_PATH` | ⚠️ Warning | Acceptable | Abbreviation kept for backward compatibility |
 | `TEST_RESULTS_DIR` | ✅ Approved | Good | Clear purpose |
 
 ### Findings and Recommendations
 
-1. **CS_CLUSTER_NAME**: The "CS" prefix is unclear. Based on code analysis, this appears to mean "Cluster Service" or relates to the cluster name prefix used for resource group naming. Consider:
-   - Renaming to `CLUSTER_NAME_PREFIX` for clarity
-   - Or documenting what "CS" stands for prominently
+1. **CS_CLUSTER_NAME**: ✅ Documented as **C**luster **S**ervice in CLAUDE.md (resolved in v1).
 
-2. **USE_K8S**: Boolean flag naming could be clearer. Consider `USE_K8S_MODE=true` or `DEPLOYMENT_MODE=k8s` for better clarity.
+2. **USE_K8S**: Now auto-set when `USE_KUBECONFIG` is provided. Naming kept for backward compatibility. Low priority to rename.
 
-3. **GEN_SCRIPT_PATH**: Abbreviation "GEN" could confuse users. Consider full name.
+3. **GEN_SCRIPT_PATH**: Abbreviation kept for backward compatibility. Low priority to rename.
 
 ---
 
@@ -96,7 +147,7 @@ This document provides a comprehensive review of all public interfaces that will
 - Grouping/organization is logical
 - No fields that should be private
 
-### Current Structure Analysis
+### Current Structure Analysis (V1.1)
 
 ```go
 type TestConfig struct {
@@ -106,47 +157,55 @@ type TestConfig struct {
     RepoDir    string  // ✅ Good - consistent
 
     // Cluster configuration
-    ManagementClusterName string        // ✅ Good - descriptive
-    WorkloadClusterName   string        // ✅ Good - descriptive
-    ClusterNamePrefix     string        // ✅ Good - better than CS_CLUSTER_NAME
-    OCPVersion            string        // ✅ Good - matches installer variable
-    Region                string        // ✅ Good - simple
-    AzureSubscriptionName string        // ✅ Good - clear that it's the name (FIXED)
-    Environment           string        // ✅ Good - matches DEPLOYMENT_ENV
-    CAPZUser              string        // ✅ Good - matches CAPZ_USER env var (FIXED)
-    TestNamespace         string        // ✅ Good - clear
-    CAPINamespace         string        // ✅ Good - clear
-    CAPZNamespace         string        // ✅ Good - clear
+    ManagementClusterName    string  // ✅ Good - descriptive
+    WorkloadClusterName      string  // ✅ Good - descriptive
+    ClusterNamePrefix        string  // ✅ Good - maps to CS_CLUSTER_NAME
+    OCPVersion               string  // ✅ Good - matches installer variable
+    Region                   string  // ✅ Good - simple
+    AzureSubscriptionName    string  // ✅ Good - clear (FIXED in v1)
+    Environment              string  // ✅ Good - matches DEPLOYMENT_ENV
+    CAPZUser                 string  // ✅ Good - matches CAPZ_USER (FIXED in v1)
+    WorkloadClusterNamespace string  // ✅ Good - replaces TestNamespace (v1.1)
+    CAPINamespace            string  // ✅ Good - clear
+    CAPZNamespace            string  // ✅ Good - clear
+
+    // External cluster configuration (New in V1.1)
+    UseKubeconfig string  // ✅ Good - file path, maps to USE_KUBECONFIG
 
     // Paths
     ClusterctlBinPath string  // ✅ Good - clear
     ScriptsPath       string  // ✅ Good - clear
-    GenScriptPath     string  // ⚠️ Abbreviation - consider GenerationScriptPath
+    GenScriptPath     string  // ⚠️ Abbreviation - kept for backward compatibility
 
     // Timeouts
     DeploymentTimeout    time.Duration  // ✅ Good - proper type
     ASOControllerTimeout time.Duration  // ✅ Good - proper type
+
+    // MCE configuration (New in V1.1)
+    MCEAutoEnable        bool           // ✅ Good - clear boolean
+    MCEEnablementTimeout time.Duration  // ✅ Good - proper type, consistent naming
 }
 ```
 
+### V1.1 Changes
+
+| Change | Details | Status |
+|--------|---------|--------|
+| `TestNamespace` → `WorkloadClusterNamespace` | Renamed to match env var and clarify purpose | ✅ Breaking but necessary |
+| `UseKubeconfig` added | External cluster support | ✅ New field, no breakage |
+| `MCEAutoEnable` added | MCE auto-enablement control | ✅ New field, no breakage |
+| `MCEEnablementTimeout` added | MCE timeout configuration | ✅ New field, `time.Duration` type correct |
+
 ### Findings and Recommendations
 
-1. **Field Grouping**: ✅ The struct is well-organized with logical groupings:
-   - Repository configuration
-   - Cluster configuration
-   - Paths
-   - Timeouts
+1. **Field Grouping**: ✅ Well-organized with logical groupings (repository, cluster, external cluster, paths, timeouts, MCE).
 
 2. **Type Appropriateness**: ✅ Types are correct:
-   - `time.Duration` for timeouts (not strings)
-   - Strings for configuration values
+   - `time.Duration` for all timeouts
+   - `bool` for `MCEAutoEnable`
+   - Strings for paths and identifiers
 
-3. **Naming Issues** (RESOLVED):
-   - ~~`AzureSubscription`~~ → `AzureSubscriptionName` ✅ FIXED
-   - ~~`User`~~ → `CAPZUser` ✅ FIXED
-   - `GenScriptPath` - Abbreviation. Consider `GenerationScriptPath` (minor, kept as-is for v1).
-
-4. **No Private Fields Needed**: All fields appropriately public for test configuration.
+3. **WorkloadClusterNamespace Resolution**: This field is computed from multiple sources (env var → state file → auto-generated). The resolution logic is well-documented in `getWorkloadClusterNamespace()` (`config.go:65-109`).
 
 ---
 
@@ -158,70 +217,64 @@ type TestConfig struct {
 - Return types are appropriate
 - No functions that should be internal
 
-### Public Helper Functions Review
+### V1 Public Helper Functions
 
 | Function | Signature | Status | Notes |
 |----------|-----------|--------|-------|
-| `CommandExists` | `(cmd string) bool` | ✅ Approved | Simple, clear, follows Go naming |
-| `RunCommand` | `(t *testing.T, name string, args ...string) (string, error)` | ✅ Approved | Standard pattern, t first as per convention |
-| `RunCommandQuiet` | `(t *testing.T, name string, args ...string) (string, error)` | ✅ Approved | Good variant name |
-| `RunCommandWithStreaming` | `(t *testing.T, name string, args ...string) (string, error)` | ✅ Approved | Descriptive name |
-| `SetEnvVar` | `(t *testing.T, key, value string)` | ✅ Approved | Clear, standard pattern |
-| `FileExists` | `(path string) bool` | ✅ Approved | Simple, standard Go naming |
-| `DirExists` | `(path string) bool` | ✅ Approved | Consistent with FileExists |
-| `GetEnvOrDefault` | `(key, defaultValue string) string` | ✅ Approved | Clear purpose |
-| `ValidateDomainPrefix` | `(user, env string) error` | ✅ Approved | Clear validation function |
-| `ValidateRFC1123Name` | `(name, varName string) error` | ✅ Approved | Clear, includes varName for error messages |
-
-### Additional Public Functions
-
-| Function | Signature | Status | Notes |
-|----------|-----------|--------|-------|
-| `PrintTestHeader` | `(t, testName, description string)` | ✅ Approved | Clear purpose |
-| `PrintToTTY` | `(format string, args ...interface{})` | ✅ Approved | Clear purpose |
-| `ReportProgress` | `(t, iteration int, elapsed, remaining, timeout Duration)` | ✅ Approved | Good for progress reporting |
-| `IsKubectlApplySuccess` | `(output string) bool` | ✅ Approved | Clear predicate naming |
+| `CommandExists` | `(cmd string) bool` | ✅ Approved | Simple, clear |
+| `RunCommand` | `(t, name string, args ...string) (string, error)` | ✅ Approved | Standard pattern |
+| `RunCommandQuiet` | `(t, name string, args ...string) (string, error)` | ✅ Approved | Good variant |
+| `RunCommandWithStreaming` | `(t, name string, args ...string) (string, error)` | ✅ Approved | Descriptive |
+| `SetEnvVar` | `(t, key, value string)` | ✅ Approved | Clear |
+| `FileExists` | `(path string) bool` | ✅ Approved | Standard |
+| `DirExists` | `(path string) bool` | ✅ Approved | Consistent |
+| `GetEnvOrDefault` | `(key, defaultValue string) string` | ✅ Approved | Clear |
+| `ValidateDomainPrefix` | `(user, env string) error` | ✅ Approved | Clear |
+| `ValidateRFC1123Name` | `(name, varName string) error` | ✅ Approved | Clear |
+| `PrintTestHeader` | `(t, testName, description string)` | ✅ Approved | Clear |
+| `PrintToTTY` | `(format string, args ...interface{})` | ✅ Approved | Clear |
+| `ReportProgress` | `(t, iteration int, elapsed, remaining, timeout Duration)` | ✅ Approved | Good |
+| `IsKubectlApplySuccess` | `(output string) bool` | ✅ Approved | Clear predicate |
 | `ExtractClusterNameFromYAML` | `(filePath string) (string, error)` | ✅ Approved | Descriptive |
-| `FormatAROControlPlaneConditions` | `(jsonData string) string` | ✅ Approved | Standard Format* naming |
-| `EnsureAzureCredentialsSet` | `(t) error` | ✅ Approved | Ensure* naming indicates side effect |
-| `PatchASOCredentialsSecret` | `(t, kubeContext string) error` | ✅ Approved | Clear operation naming |
-| `ApplyWithRetry` | `(t, kubeContext, yamlPath string, maxRetries int) error` | ✅ Approved | Clear retry pattern |
-| `WaitForClusterHealthy` | `(t, kubeContext string, timeout Duration) error` | ✅ Approved | WaitFor* naming convention |
-| `WaitForClusterReady` | `(t, kubeContext, namespace, clusterName string, timeout Duration) error` | ✅ Approved | Consistent with WaitFor* |
+| `FormatAROControlPlaneConditions` | `(jsonData string) string` | ✅ Approved | Standard |
+| `EnsureAzureCredentialsSet` | `(t) error` | ✅ Approved | Ensure* naming |
+| `PatchASOCredentialsSecret` | `(t, kubeContext string) error` | ✅ Approved | Clear |
+| `ApplyWithRetry` | `(t, kubeContext, yamlPath string, maxRetries int) error` | ✅ Approved | Clear |
+| `WaitForClusterHealthy` | `(t, kubeContext string, timeout Duration) error` | ✅ Approved | WaitFor* |
+| `WaitForClusterReady` | `(t, kubeContext, namespace, clusterName string, timeout Duration) error` | ✅ Approved | Consistent |
+
+### New V1.1 Helper Functions
+
+| Function | Signature | Status | Notes |
+|----------|-----------|--------|-------|
+| `ExtractCurrentContext` | `(kubeconfigPath string) string` | ✅ Approved | Pure function, no `t` needed |
+| `IsMCECluster` | `(t, kubeContext string) bool` | ✅ Approved | `Is*` predicate naming |
+| `GetMCEComponentStatus` | `(t, kubeContext, componentName string) (*MCEComponentStatus, error)` | ✅ Approved | `Get*` naming, returns struct pointer |
+| `SetMCEComponentState` | `(t, kubeContext, componentName string, enabled bool) error` | ✅ Approved | `Set*` naming, clear bool parameter |
+| `EnableMCEComponent` | `(t, kubeContext, componentName string) error` | ✅ Approved | Convenience wrapper for SetMCEComponentState |
+| `WaitForMCEController` | `(t, kubeContext, namespace, deploymentName string, timeout Duration) error` | ✅ Approved | `WaitFor*` consistent |
+| `CheckYAMLConfigMatch` | `(t, aroYAMLPath, expectedPrefix string) (bool, string)` | ✅ Approved | Named returns for clarity |
+| `WriteDeploymentState` | `(config *TestConfig) error` | ✅ Approved | No `t` needed (utility) |
+| `CheckMismatchedClusters` | `(t, kubeContext, namespace, expectedClusterName string) ([]string, error)` | ✅ Approved | Returns slice of mismatched names |
 
 ### Findings and Recommendations
 
-1. **Go Naming Conventions**: ✅ All functions follow Go conventions
-   - Exported functions start with uppercase
-   - Descriptive names without excessive abbreviations
-   - Predicate functions use `Is*` prefix
+1. **Naming Conventions**: ✅ All V1.1 functions follow established patterns:
+   - Predicates: `Is*` (IsMCECluster)
+   - Getters: `Get*` (GetMCEComponentStatus)
+   - Setters: `Set*` (SetMCEComponentState)
+   - Wait functions: `WaitFor*` (WaitForMCEController)
 
-2. **Parameter Order**: ✅ Consistent
-   - `t *testing.T` always first (Go testing convention)
-   - Context-like parameters (kubeContext) follow t
-   - Configuration parameters last
+2. **Parameter Order**: ✅ Consistent — `t *testing.T` always first when present.
 
-3. **Return Types**: ✅ Appropriate
-   - `error` for operations that can fail
-   - `bool` for existence checks
-   - `(string, error)` for commands that return output
-
-4. **Internal Functions**: The following functions are appropriately unexported:
-   - `openTTY()` - internal TTY handling
-   - `isWaitingCondition()` - internal condition checking
-   - `isRetryableKubectlError()` - internal retry logic
-   - `extractVersionFromImage()` - internal parsing
-   - `getControllerNamespace()` - internal config helper
+3. **New Internal Functions**: Appropriately unexported:
+   - `getWorkloadClusterNamespace()` - namespace resolution
+   - `parseMCEAutoEnable()` - config parsing
+   - `parseMCEEnablementTimeout()` - config parsing
 
 ---
 
 ## Makefile Targets
-
-### Review Criteria
-- Target names are intuitive
-- Help text is clear
-- No targets that should be internal (prefix with `_`)
-- Consistent naming convention
 
 ### User-Facing Targets
 
@@ -255,20 +308,12 @@ type TestConfig struct {
 | `_deploy-crs` | ✅ Approved | Internal phase |
 | `_verify` | ✅ Approved | Internal phase |
 | `_delete` | ✅ Approved | Internal phase |
+| `_cleanup` | ✅ Approved | Internal phase (V1.1) |
 | `_test-all-impl` | ✅ Approved | Internal implementation |
 | `_copy-latest-results` | ✅ Approved | Internal helper |
 | `_clean-azure-force` | ✅ Approved | Internal force variant |
 
-### Findings and Recommendations
-
-1. **Naming Convention**: ✅ Excellent
-   - User-facing targets use standard names
-   - Internal targets correctly use `_` prefix
-   - Consistent kebab-case naming
-
-2. **Help Text**: ✅ All user-facing targets have `## Comment` for help text
-
-3. **Documentation**: ✅ The `help` target provides clear usage information and explains the expected order for internal targets.
+No new user-facing Makefile targets were added in V1.1.
 
 ---
 
@@ -302,8 +347,6 @@ type TestConfig struct {
 
 ## Exit Codes
 
-### Current Exit Codes
-
 | Script/Tool | Exit Code | Meaning | Status |
 |-------------|-----------|---------|--------|
 | cleanup-azure-resources.sh | 0 | Success | ✅ Documented |
@@ -313,54 +356,39 @@ type TestConfig struct {
 | Makefile targets | 0 | Success | ✅ Standard |
 | Makefile targets | Non-zero | Failure | ✅ Standard |
 
-### Recommendation
-
-Exit codes are consistent and follow Unix conventions. No changes needed.
+Exit codes are consistent and follow Unix conventions.
 
 ---
 
 ## Recommendations Summary
 
-### Critical (Should Fix Before V1)
+### Resolved in V1
 
-1. **CS_CLUSTER_NAME Environment Variable**: The "CS" prefix is unclear and should be documented or renamed to `CLUSTER_NAME_PREFIX`.
-   - ✅ **RESOLVED**: Added documentation in CLAUDE.md explaining CS = **C**luster **S**ervice
+1. **CS_CLUSTER_NAME**: ✅ Documented as **C**luster **S**ervice in CLAUDE.md
+2. **TestConfig.AzureSubscription**: ✅ Renamed to `AzureSubscriptionName`
+3. **TestConfig.User**: ✅ Renamed to `CAPZUser`
 
-### Recommended (Minor Improvements)
+### Resolved in V1.1
 
-2. **TestConfig.AzureSubscription Field**: Consider renaming to `AzureSubscriptionName` for clarity since it maps to `AZURE_SUBSCRIPTION_NAME`.
-   - ✅ **RESOLVED**: Renamed to `AzureSubscriptionName`
+4. **TEST_NAMESPACE → WORKLOAD_CLUSTER_NAMESPACE**: ✅ Renamed with auto-generation support
+5. **OPENSHIFT_VERSION → OCP_VERSION**: ✅ Renamed to match cluster-api-installer
 
-3. **TestConfig.User Field**: Consider renaming to `CAPZUser` to match the `CAPZ_USER` environment variable.
-   - ✅ **RESOLVED**: Renamed to `CAPZUser`
+### Deferred (Low Priority)
 
-4. **GEN_SCRIPT_PATH**: Consider renaming to `GENERATION_SCRIPT_PATH` to avoid abbreviation.
-   - ⏸️ **Deferred**: Minor issue, kept as-is for v1 stability
-
-5. **USE_K8S**: Consider renaming to `USE_K8S_MODE` or `DEPLOYMENT_MODE` for clarity.
-   - ⏸️ **Deferred**: Minor issue, kept as-is for v1 stability
-
-### Already Good (No Changes Needed)
-
-- Azure authentication variables follow SDK conventions
-- ARO_REPO_* family is consistent
-- Cluster configuration variables are well-named
-- Helper function signatures follow Go conventions
-- Makefile targets use proper naming conventions with `_` prefix for internal targets
-- Script interfaces are well-documented with standard flags
+6. **GEN_SCRIPT_PATH**: Abbreviation kept for backward compatibility
+7. **USE_K8S**: Naming kept for backward compatibility; now auto-set when `USE_KUBECONFIG` is provided
 
 ---
 
 ## Conclusion
 
-The API/Interface contracts are well-designed and follow established conventions. All critical and recommended improvements have been addressed:
+The API/Interface contracts are well-designed and follow established conventions:
 
-- **CS_CLUSTER_NAME** is now documented with CS = Cluster Service
-- **TestConfig field names** are now consistent with their environment variable counterparts
-- **Helper functions** follow Go conventions
-- **Makefile targets** use proper naming with `_` prefix for internal targets
+- **Environment variables** follow SCREAMING_SNAKE_CASE with logical prefixes (`AZURE_*`, `ARO_*`, `MCE_*`, `WORKLOAD_CLUSTER_*`)
+- **TestConfig fields** use appropriate types (`time.Duration` for timeouts, `bool` for flags)
+- **Helper functions** follow Go conventions (`Is*`, `Get*`, `Set*`, `WaitFor*`, `t *testing.T` first)
+- **Makefile targets** use `_` prefix for internal targets
 - **Script interfaces** are well-documented with standard flags
+- **Breaking changes** from V1 are documented with migration paths
 
-**Overall Rating**: ✅ **Ready for V1**
-
-The test suite's public API is stable, consistent, and follows industry best practices. Breaking changes after v1 should be minimal given the current design quality.
+**Overall Rating**: ✅ **Ready for V1.1**

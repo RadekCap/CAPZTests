@@ -315,7 +315,8 @@ Use existing helpers from `test/helpers.go` instead of reimplementing:
 - `CAPZ_USER`
 - `CS_CLUSTER_NAME`
 - `DEPLOYMENT_ENV`
-- `TEST_NAMESPACE`
+- `WORKLOAD_CLUSTER_NAMESPACE`
+- `WORKLOAD_CLUSTER_NAMESPACE_PREFIX`
 
 ### Error Handling
 

@@ -92,7 +92,8 @@ Tests are configured via environment variables:
 - `AZURE_SUBSCRIPTION_NAME` - Azure subscription ID
 - `DEPLOYMENT_ENV` - Deployment environment (stage/prod) (default: `stage`)
 - `USER` - User identifier
-- `TEST_NAMESPACE` - Kubernetes namespace for testing resources (default: `default`)
+- `WORKLOAD_CLUSTER_NAMESPACE` - Namespace for workload cluster resources (auto-generated if not set)
+- `WORKLOAD_CLUSTER_NAMESPACE_PREFIX` - Prefix for auto-generated namespace (default: `capz-test`)
 
 ## Running Tests
 
