@@ -513,6 +513,58 @@ func ExtractAROControlPlaneNameFromYAML(filePath string) (string, error) {
 	return "", fmt.Errorf("no AROControlPlane resource found in %s", filePath)
 }
 
+// ExtractMachinePoolNameFromYAML extracts the MachinePool resource name from a YAML file.
+// It looks for a resource with kind "MachinePool" and apiVersion starting with
+// "cluster.x-k8s.io/" and returns its metadata.name.
+func ExtractMachinePoolNameFromYAML(filePath string) (string, error) {
+	if _, err := os.Stat(filePath); err != nil {
+		return "", fmt.Errorf("file not accessible: %w", err)
+	}
+
+	// #nosec G304 - filePath comes from test configuration
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	docs := strings.Split(string(data), "---")
+	for _, doc := range docs {
+		doc = strings.TrimSpace(doc)
+		if doc == "" {
+			continue
+		}
+
+		var content map[string]interface{}
+		if err := yaml.Unmarshal([]byte(doc), &content); err != nil {
+			continue
+		}
+
+		kind, ok := content["kind"].(string)
+		if !ok || kind != "MachinePool" {
+			continue
+		}
+
+		apiVersion, ok := content["apiVersion"].(string)
+		if !ok || !strings.HasPrefix(apiVersion, "cluster.x-k8s.io/") {
+			continue
+		}
+
+		metadata, ok := content["metadata"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		name, ok := metadata["name"].(string)
+		if !ok || name == "" {
+			continue
+		}
+
+		return name, nil
+	}
+
+	return "", fmt.Errorf("no MachinePool resource found in %s", filePath)
+}
+
 // CheckYAMLConfigMatch verifies that existing YAML files match the current configuration.
 // It extracts the cluster name from the aro.yaml file and compares it with the expected
 // cluster name prefix. This is used to detect configuration mismatches that would cause
@@ -745,21 +797,50 @@ func GetInfrastructureResourceStatus(t *testing.T, kubeContext, namespace, clust
 func FormatInfrastructureProgress(status InfrastructureResourceStatus) string {
 	var sb strings.Builder
 
-	const labelWidth = 24
-	const boxInnerWidth = 59
+	// Calculate label width dynamically from actual data
+	labelWidth := len("Total") // minimum
+	for _, ks := range status.KindSummaries {
+		if len(ks.Kind) > labelWidth {
+			labelWidth = len(ks.Kind)
+		}
+	}
+	for _, cond := range status.Conditions {
+		if len(cond.Type) > labelWidth {
+			labelWidth = len(cond.Type)
+		}
+	}
+	labelWidth += 2 // ensure at least 2 spaces between label and value
 
-	// Helper to format a row with emoji, label, and value
+	const valueWidth = 36
+	// emojiWidth accounts for the 2 visual columns an emoji occupies in the terminal.
+	// Go's fmt.Sprintf counts an emoji as 1 rune, so we manually pad to avoid drift.
+	const emojiWidth = 2
+	// Inner width: " " + emoji(2) + " " + label + value + " "
+	innerWidth := 1 + emojiWidth + 1 + labelWidth + valueWidth + 1
+
+	border := strings.Repeat("─", innerWidth)
+
+	// Center the title within the box
+	title := "INFRASTRUCTURE RECONCILIATION"
+	titlePad := innerWidth - len(title)
+	titleLeft := titlePad / 2
+	titleRight := titlePad - titleLeft
+
+	// formatRow builds a row with emoji, label, and value.
+	// Pads manually instead of using fmt %-*s to correctly handle emoji visual width.
 	formatRow := func(emoji, label, value string) string {
-		const valueWidth = 32
 		if len(value) > valueWidth {
 			value = value[:valueWidth-3] + "..."
 		}
-		return fmt.Sprintf("│ %s %-*s%-*s │\n", emoji, labelWidth, label, valueWidth, value)
+		return "│ " + emoji + " " +
+			label + strings.Repeat(" ", labelWidth-len(label)) +
+			value + strings.Repeat(" ", valueWidth-len(value)) +
+			" │\n"
 	}
 
-	sb.WriteString("┌─────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│               INFRASTRUCTURE RECONCILIATION                 │\n")
-	sb.WriteString("├─────────────────────────────────────────────────────────────┤\n")
+	sb.WriteString("┌" + border + "┐\n")
+	sb.WriteString("│" + strings.Repeat(" ", titleLeft) + title + strings.Repeat(" ", titleRight) + "│\n")
+	sb.WriteString("├" + border + "┤\n")
 
 	// Per-kind breakdown
 	for _, ks := range status.KindSummaries {
@@ -771,7 +852,7 @@ func FormatInfrastructureProgress(status InfrastructureResourceStatus) string {
 	}
 
 	// Summary separator and totals
-	sb.WriteString("├─────────────────────────────────────────────────────────────┤\n")
+	sb.WriteString("├" + border + "┤\n")
 
 	if status.ReadyResources == status.TotalResources {
 		sb.WriteString(formatRow("✅", "Total", fmt.Sprintf("%d/%d resources reconciled", status.ReadyResources, status.TotalResources)))
@@ -792,7 +873,7 @@ func FormatInfrastructureProgress(status InfrastructureResourceStatus) string {
 		sb.WriteString(formatRow(icon, cond.Type, detail))
 	}
 
-	sb.WriteString("└─────────────────────────────────────────────────────────────┘\n")
+	sb.WriteString("└" + border + "┘\n")
 
 	return sb.String()
 }

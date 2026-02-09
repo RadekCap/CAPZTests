@@ -30,7 +30,7 @@ const (
 	// DefaultCAPZUser is the default user identifier for CAPZ resources.
 	// Used in ClusterNamePrefix (for resource group naming) and User field.
 	// Extracted to a constant to ensure consistency across all usages.
-	DefaultCAPZUser = "rcapn"
+	DefaultCAPZUser = "rcapy"
 
 	// DefaultDeploymentEnv is the default deployment environment identifier.
 	// Used in ClusterNamePrefix and Environment field.
@@ -327,6 +327,20 @@ func (c *TestConfig) GetProvisionedAROControlPlaneName() string {
 	name, err := ExtractAROControlPlaneNameFromYAML(aroYAMLPath)
 	if err != nil {
 		return c.GetProvisionedClusterName() + "-control-plane"
+	}
+
+	return name
+}
+
+// GetProvisionedMachinePoolName returns the actual MachinePool resource name
+// from the generated aro.yaml file. Falls back to GetProvisionedClusterName() + "-pool"
+// if aro.yaml doesn't exist or doesn't contain a MachinePool resource.
+func (c *TestConfig) GetProvisionedMachinePoolName() string {
+	aroYAMLPath := fmt.Sprintf("%s/%s/aro.yaml", c.RepoDir, c.GetOutputDirName())
+
+	name, err := ExtractMachinePoolNameFromYAML(aroYAMLPath)
+	if err != nil {
+		return c.GetProvisionedClusterName() + "-pool"
 	}
 
 	return name
