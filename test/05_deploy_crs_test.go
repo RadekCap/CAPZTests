@@ -674,7 +674,7 @@ func TestDeployment_VerifyAROClusterReady(t *testing.T) {
 	}
 }
 
-// TestDeployment_VerifyClusterProvisioned verifies cluster.status.initialization.provisioned becomes True.
+// TestDeployment_VerifyClusterProvisioned verifies cluster.status.initialization.infrastructureProvisioned becomes True.
 // This follows AROCluster.Ready (step 9) in the deployment sequence.
 func TestDeployment_VerifyClusterProvisioned(t *testing.T) {
 	config := NewTestConfig()
@@ -690,25 +690,25 @@ func TestDeployment_VerifyClusterProvisioned(t *testing.T) {
 	pollInterval := 10 * time.Second
 	startTime := time.Now()
 
-	PrintToTTY("\n=== Waiting for Cluster.Initialization.Provisioned ===\n")
+	PrintToTTY("\n=== Waiting for Cluster.Initialization.InfrastructureProvisioned ===\n")
 	PrintToTTY("Cluster: %s | Namespace: %s\n", provisionedClusterName, config.WorkloadClusterNamespace)
-	PrintToTTY("Command: kubectl --context %s -n %s get cluster %s -o jsonpath={.status.initialization.provisioned}\n\n",
+	PrintToTTY("Command: kubectl --context %s -n %s get cluster %s -o jsonpath={.status.initialization.infrastructureProvisioned}\n\n",
 		context, config.WorkloadClusterNamespace, provisionedClusterName)
 
 	for {
 		elapsed := time.Since(startTime)
 		if elapsed > timeout {
-			t.Fatalf("Timeout after %v waiting for cluster.status.initialization.provisioned=true.\n"+
+			t.Fatalf("Timeout after %v waiting for cluster.status.initialization.infrastructureProvisioned=true.\n"+
 				"  kubectl --context %s -n %s get cluster %s -o yaml",
 				elapsed.Round(time.Second), context, config.WorkloadClusterNamespace, provisionedClusterName)
 			return
 		}
 
 		output, err := RunCommandQuiet(t, "kubectl", "--context", context, "-n", config.WorkloadClusterNamespace,
-			"get", "cluster", provisionedClusterName, "-o", "jsonpath={.status.initialization.provisioned}")
+			"get", "cluster", provisionedClusterName, "-o", "jsonpath={.status.initialization.infrastructureProvisioned}")
 		if err == nil && strings.TrimSpace(output) == "true" {
-			PrintToTTY("✅ Cluster.Initialization.Provisioned is True (took %v)\n\n", elapsed.Round(time.Second))
-			t.Logf("cluster.status.initialization.provisioned=true (took %v)", elapsed.Round(time.Second))
+			PrintToTTY("✅ Cluster.Initialization.InfrastructureProvisioned is True (took %v)\n\n", elapsed.Round(time.Second))
+			t.Logf("cluster.status.initialization.infrastructureProvisioned=true (took %v)", elapsed.Round(time.Second))
 			return
 		}
 
@@ -716,13 +716,13 @@ func TestDeployment_VerifyClusterProvisioned(t *testing.T) {
 		if status == "" {
 			status = "<not set yet>"
 		}
-		PrintToTTY("⏳ Cluster.Initialization.Provisioned: %s (elapsed %v)\n", status, elapsed.Round(time.Second))
+		PrintToTTY("⏳ Cluster.Initialization.InfrastructureProvisioned: %s (elapsed %v)\n", status, elapsed.Round(time.Second))
 		time.Sleep(pollInterval)
 	}
 }
 
 // TestDeployment_VerifyClusterInfrastructureReady verifies CAPI Cluster InfrastructureReady condition becomes True.
-// This follows Cluster.Initialization.Provisioned (step 10) in the deployment sequence.
+// This follows Cluster.Initialization.InfrastructureProvisioned (step 10) in the deployment sequence.
 func TestDeployment_VerifyClusterInfrastructureReady(t *testing.T) {
 	config := NewTestConfig()
 
