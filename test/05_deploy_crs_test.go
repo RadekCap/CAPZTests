@@ -644,7 +644,9 @@ func TestDeployment_VerifyAROClusterReady(t *testing.T) {
 	startTime := time.Now()
 
 	PrintToTTY("\n=== Waiting for AROCluster.Ready ===\n")
-	PrintToTTY("Cluster: %s | Namespace: %s\n\n", provisionedClusterName, config.WorkloadClusterNamespace)
+	PrintToTTY("Cluster: %s | Namespace: %s\n", provisionedClusterName, config.WorkloadClusterNamespace)
+	PrintToTTY("Command: kubectl --context %s -n %s get arocluster %s -o jsonpath={.status.ready}\n\n",
+		context, config.WorkloadClusterNamespace, provisionedClusterName)
 
 	for {
 		elapsed := time.Since(startTime)
@@ -663,7 +665,11 @@ func TestDeployment_VerifyAROClusterReady(t *testing.T) {
 			return
 		}
 
-		PrintToTTY("⏳ AROCluster.Ready: %s\n", strings.TrimSpace(output))
+		status := strings.TrimSpace(output)
+		if status == "" {
+			status = "<not set yet>"
+		}
+		PrintToTTY("⏳ AROCluster.Ready: %s (elapsed %v)\n", status, elapsed.Round(time.Second))
 		time.Sleep(pollInterval)
 	}
 }
@@ -685,7 +691,9 @@ func TestDeployment_VerifyClusterProvisioned(t *testing.T) {
 	startTime := time.Now()
 
 	PrintToTTY("\n=== Waiting for Cluster.Initialization.Provisioned ===\n")
-	PrintToTTY("Cluster: %s | Namespace: %s\n\n", provisionedClusterName, config.WorkloadClusterNamespace)
+	PrintToTTY("Cluster: %s | Namespace: %s\n", provisionedClusterName, config.WorkloadClusterNamespace)
+	PrintToTTY("Command: kubectl --context %s -n %s get cluster %s -o jsonpath={.status.initialization.provisioned}\n\n",
+		context, config.WorkloadClusterNamespace, provisionedClusterName)
 
 	for {
 		elapsed := time.Since(startTime)
@@ -704,7 +712,11 @@ func TestDeployment_VerifyClusterProvisioned(t *testing.T) {
 			return
 		}
 
-		PrintToTTY("⏳ Cluster.Initialization.Provisioned: %s\n", strings.TrimSpace(output))
+		status := strings.TrimSpace(output)
+		if status == "" {
+			status = "<not set yet>"
+		}
+		PrintToTTY("⏳ Cluster.Initialization.Provisioned: %s (elapsed %v)\n", status, elapsed.Round(time.Second))
 		time.Sleep(pollInterval)
 	}
 }
@@ -726,7 +738,9 @@ func TestDeployment_VerifyClusterInfrastructureReady(t *testing.T) {
 	startTime := time.Now()
 
 	PrintToTTY("\n=== Waiting for CAPI Cluster.InfrastructureReady ===\n")
-	PrintToTTY("Cluster: %s | Namespace: %s\n\n", provisionedClusterName, config.WorkloadClusterNamespace)
+	PrintToTTY("Cluster: %s | Namespace: %s\n", provisionedClusterName, config.WorkloadClusterNamespace)
+	PrintToTTY("Command: kubectl --context %s -n %s get cluster %s -o jsonpath={.status.conditions[?(@.type=='InfrastructureReady')].status}\n\n",
+		context, config.WorkloadClusterNamespace, provisionedClusterName)
 
 	for {
 		elapsed := time.Since(startTime)
@@ -746,7 +760,11 @@ func TestDeployment_VerifyClusterInfrastructureReady(t *testing.T) {
 			return
 		}
 
-		PrintToTTY("⏳ Cluster.InfrastructureReady: %s\n", strings.TrimSpace(output))
+		status := strings.TrimSpace(output)
+		if status == "" {
+			status = "<not set yet>"
+		}
+		PrintToTTY("⏳ Cluster.InfrastructureReady: %s (elapsed %v)\n", status, elapsed.Round(time.Second))
 		time.Sleep(pollInterval)
 	}
 }
