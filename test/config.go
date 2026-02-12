@@ -175,8 +175,8 @@ func NewTestConfig() *TestConfig {
 
 	return &TestConfig{
 		// Repository defaults
-		RepoURL:    GetEnvOrDefault("ARO_REPO_URL", "https://github.com/marek-veber/cluster-api-installer"),
-		RepoBranch: GetEnvOrDefault("ARO_REPO_BRANCH", "fix-mp-providerIDList"),
+		RepoURL:    GetEnvOrDefault("ARO_REPO_URL", "https://github.com/stolostron/cluster-api-installer"),
+		RepoBranch: GetEnvOrDefault("ARO_REPO_BRANCH", "main"),
 		RepoDir:    getDefaultRepoDir(),
 
 		// Cluster defaults
