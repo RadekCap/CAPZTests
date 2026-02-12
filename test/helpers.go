@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -90,6 +91,7 @@ func RunCommand(t *testing.T, name string, args ...string) (string, error) {
 
 	// Also log to test output
 	t.Logf("Executing command: %s", cmdStr)
+	logCommandToFile(t.Name(), cmdStr)
 
 	cmd := exec.Command(name, args...)
 	output, err := cmd.CombinedOutput()
@@ -110,6 +112,7 @@ func RunCommandQuiet(t *testing.T, name string, args ...string) (string, error) 
 
 	// Only log to test output (not TTY)
 	t.Logf("Executing command (quiet): %s", cmdStr)
+	logCommandToFile(t.Name(), cmdStr)
 
 	cmd := exec.Command(name, args...)
 	output, err := cmd.CombinedOutput()
@@ -155,6 +158,7 @@ func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string,
 
 	_, _ = fmt.Fprintf(tty, "Running (streaming): %s\n", cmdStr)
 	t.Logf("Executing command (streaming): %s", cmdStr)
+	logCommandToFile(t.Name(), cmdStr)
 
 	cmd := exec.Command(name, args...)
 
@@ -243,6 +247,59 @@ func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string,
 	mu.Unlock()
 
 	return output, cmdErr
+}
+
+// commandLogDir caches the resolved results directory for command logging.
+// commandLogOnce ensures the directory is resolved only once per test run.
+// commandLogSeen tracks entries already written to deduplicate polling loop commands.
+var (
+	commandLogDir  string
+	commandLogOnce sync.Once
+	commandLogSeen map[string]bool
+	commandLogMu   sync.Mutex
+)
+
+// resolveCommandLogDir returns the results directory path for command logging.
+func resolveCommandLogDir() string {
+	if dir := os.Getenv("TEST_RESULTS_DIR"); dir != "" {
+		return dir
+	}
+	return GetResultsDir()
+}
+
+// logCommandToFile appends a command entry to commands.log in the results directory.
+// Duplicate entries (same test name and command) are skipped to avoid polluting
+// the log with repeated polling commands.
+// Silently no-ops if the results directory is unavailable.
+func logCommandToFile(testName, cmdStr string) {
+	commandLogOnce.Do(func() {
+		commandLogDir = resolveCommandLogDir()
+		commandLogSeen = make(map[string]bool)
+	})
+	if commandLogDir == "" {
+		return
+	}
+
+	entry := fmt.Sprintf("%s: %s", testName, cmdStr)
+
+	commandLogMu.Lock()
+	if commandLogSeen[entry] {
+		commandLogMu.Unlock()
+		return
+	}
+	commandLogSeen[entry] = true
+	commandLogMu.Unlock()
+
+	logPath := filepath.Join(commandLogDir, "commands.log")
+
+	// #nosec G304 -- path constructed from results directory and fixed filename
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	fmt.Fprintf(f, "%s\n", entry)
 }
 
 // SetEnvVar sets an environment variable for testing
@@ -351,6 +408,7 @@ func ReportProgress(t *testing.T, iteration int, elapsed, remaining, timeout tim
 		elapsed.Round(time.Second),
 		remaining.Round(time.Second),
 		percentage)
+	PrintToTTY("─────────────────────────────────────────────────────────────────────────\n")
 
 	// Also log to test output
 	t.Logf("Waiting iteration %d (elapsed: %v, remaining: %v, %d%%)",

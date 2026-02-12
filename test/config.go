@@ -30,7 +30,7 @@ const (
 	// DefaultCAPZUser is the default user identifier for CAPZ resources.
 	// Used in ClusterNamePrefix (for resource group naming) and User field.
 	// Extracted to a constant to ensure consistency across all usages.
-	DefaultCAPZUser = "rcapv"
+	DefaultCAPZUser = "rcapd"
 
 	// DefaultDeploymentEnv is the default deployment environment identifier.
 	// Used in ClusterNamePrefix and Environment field.

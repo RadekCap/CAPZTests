@@ -312,6 +312,39 @@ list_terminal_output() {
     fi
 }
 
+# Function to list command reference log if available
+# Arguments: $1 = use_colors (true/false)
+list_commands_log() {
+    local use_colors="${1:-true}"
+
+    local c_green c_nc
+    if [[ "$use_colors" == "true" ]]; then
+        c_green="${GREEN}"
+        c_nc="${NC}"
+    else
+        c_green=""
+        c_nc=""
+    fi
+
+    local commands_log="$RESULTS_DIR/commands.log"
+
+    if [[ -f "$commands_log" ]]; then
+        local file_size line_count
+        file_size=$(du -h "$commands_log" | cut -f1)
+        line_count=$(wc -l < "$commands_log")
+
+        echo ""
+        echo "========================================"
+        echo "         COMMAND REFERENCE LOG"
+        echo "========================================"
+        echo ""
+        echo "All shell commands executed during the test run:"
+        echo ""
+        printf "${c_green}  Commands log${c_nc}: %s (%s, %d commands)\n" "$commands_log" "$file_size" "$line_count"
+        echo ""
+    fi
+}
+
 # Function to generate and print the complete summary
 # Arguments: $1 = use_colors (true/false)
 generate_summary() {
@@ -383,6 +416,9 @@ generate_summary() {
 
     # List terminal output file if available
     list_terminal_output "$use_colors"
+
+    # List command reference log if available
+    list_commands_log "$use_colors"
 
     if [[ $TOTAL_FAILED -eq 0 ]]; then
         printf "${c_green}All tests passed!${c_nc}\n"
