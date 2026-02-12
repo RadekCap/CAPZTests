@@ -1,4 +1,9 @@
-# ARO-CAPZ Test Suite
+# CAPI Test Suite (formerly ARO-CAPZ Test Suite)
+
+> [!IMPORTANT]
+> **This repository is being transitioned** from its original form (CAPZTests) to a generalized CAPI test suite.
+> Provider-specific configuration is being extracted and the codebase is under active review.
+> The documentation below still reflects the original CAPZ-focused scope and will be updated as the generalization progresses.
 
 [![Check Dependencies](https://github.com/RadekCap/CAPZTests/actions/workflows/check-dependencies.yml/badge.svg)](https://github.com/RadekCap/CAPZTests/actions/workflows/check-dependencies.yml)
 [![Repository Setup](https://github.com/RadekCap/CAPZTests/actions/workflows/test-setup.yml/badge.svg)](https://github.com/RadekCap/CAPZTests/actions/workflows/test-setup.yml)
