@@ -65,6 +65,7 @@ GOTESTSUM := $(GOBIN)/gotestsum --format='$(GOTESTSUM_FORMAT)'
 _copy-latest-results:
 	@mkdir -p $(LATEST_RESULTS_DIR)
 	@cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true
+	@cp -f $(RESULTS_DIR)/*.log $(LATEST_RESULTS_DIR)/ 2>/dev/null || true
 
 help: ## Display this help message
 	@echo "ARO-CAPZ Test Suite Makefile"
@@ -92,9 +93,10 @@ _check-dep: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@EXIT_CODE=0; \
-	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-check-dep.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestCheckDependencies || EXIT_CODE=$$?; \
+	TEST_RESULTS_DIR=$(CURDIR)/$(RESULTS_DIR) $(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-check-dep.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestCheckDependencies || EXIT_CODE=$$?; \
 	mkdir -p $(LATEST_RESULTS_DIR); \
 	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
+	cp -f $(RESULTS_DIR)/*.log $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-check-dep.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -112,9 +114,10 @@ _setup: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@EXIT_CODE=0; \
-	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-setup.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestSetup || EXIT_CODE=$$?; \
+	TEST_RESULTS_DIR=$(CURDIR)/$(RESULTS_DIR) $(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-setup.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestSetup || EXIT_CODE=$$?; \
 	mkdir -p $(LATEST_RESULTS_DIR); \
 	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
+	cp -f $(RESULTS_DIR)/*.log $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-setup.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -132,9 +135,10 @@ _cluster: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@EXIT_CODE=0; \
-	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-cluster.xml -- $(TEST_VERBOSITY) ./test -count=1 -run "TestExternalCluster|TestKindCluster" -timeout $(CLUSTER_TIMEOUT) -failfast || EXIT_CODE=$$?; \
+	TEST_RESULTS_DIR=$(CURDIR)/$(RESULTS_DIR) $(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-cluster.xml -- $(TEST_VERBOSITY) ./test -count=1 -run "TestExternalCluster|TestKindCluster" -timeout $(CLUSTER_TIMEOUT) -failfast || EXIT_CODE=$$?; \
 	mkdir -p $(LATEST_RESULTS_DIR); \
 	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
+	cp -f $(RESULTS_DIR)/*.log $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-cluster.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -152,9 +156,10 @@ _generate-yamls: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@EXIT_CODE=0; \
-	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-generate-yamls.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestInfrastructure -timeout $(GENERATE_YAMLS_TIMEOUT) || EXIT_CODE=$$?; \
+	TEST_RESULTS_DIR=$(CURDIR)/$(RESULTS_DIR) $(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-generate-yamls.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestInfrastructure -timeout $(GENERATE_YAMLS_TIMEOUT) || EXIT_CODE=$$?; \
 	mkdir -p $(LATEST_RESULTS_DIR); \
 	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
+	cp -f $(RESULTS_DIR)/*.log $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-generate-yamls.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -172,9 +177,10 @@ _deploy-crs: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@EXIT_CODE=0; \
-	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy-crs.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestDeployment -timeout $(DEPLOY_CRS_TIMEOUT) || EXIT_CODE=$$?; \
+	TEST_RESULTS_DIR=$(CURDIR)/$(RESULTS_DIR) $(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy-crs.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestDeployment -timeout $(DEPLOY_CRS_TIMEOUT) || EXIT_CODE=$$?; \
 	mkdir -p $(LATEST_RESULTS_DIR); \
 	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
+	cp -f $(RESULTS_DIR)/*.log $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-deploy-crs.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -213,9 +219,10 @@ _delete: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@EXIT_CODE=0; \
-	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-delete.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestDeletion -timeout $(DELETION_TIMEOUT) || EXIT_CODE=$$?; \
+	TEST_RESULTS_DIR=$(CURDIR)/$(RESULTS_DIR) $(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-delete.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestDeletion -timeout $(DELETION_TIMEOUT) || EXIT_CODE=$$?; \
 	mkdir -p $(LATEST_RESULTS_DIR); \
 	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
+	cp -f $(RESULTS_DIR)/*.log $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-delete.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -233,9 +240,10 @@ _cleanup: check-gotestsum
 	@echo "Results will be saved to: $(RESULTS_DIR)"
 	@echo ""
 	@EXIT_CODE=0; \
-	$(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-cleanup.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestCleanup -timeout 30m || EXIT_CODE=$$?; \
+	TEST_RESULTS_DIR=$(CURDIR)/$(RESULTS_DIR) $(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-cleanup.xml -- $(TEST_VERBOSITY) ./test -count=1 -run TestCleanup -timeout 30m || EXIT_CODE=$$?; \
 	mkdir -p $(LATEST_RESULTS_DIR); \
 	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
+	cp -f $(RESULTS_DIR)/*.log $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
 	echo ""; \
 	echo "Test results saved to: $(RESULTS_DIR)/junit-cleanup.xml"; \
 	echo "Latest results copied to: $(LATEST_RESULTS_DIR)/"; \
@@ -278,49 +286,49 @@ _test-all-impl:
 	@echo "All test results will be saved to: $(RESULTS_DIR)"
 	@echo "Terminal output captured to: $(RESULTS_DIR)/$(TERMINAL_OUTPUT_FILE)"
 	@echo ""
-	@$(MAKE) --no-print-directory _check-dep || ( \
+	@$(MAKE) --no-print-directory _check-dep RESULTS_DIR=$(RESULTS_DIR) || ( \
 		echo ""; \
 		echo "❌ ERROR: Check dependencies phase failed. Cannot continue with test suite."; \
 		echo "   Please ensure all required tools are installed and try again."; \
 		echo ""; \
 		exit 1 \
 	)
-	@$(MAKE) --no-print-directory _setup || ( \
+	@$(MAKE) --no-print-directory _setup RESULTS_DIR=$(RESULTS_DIR) || ( \
 		echo ""; \
 		echo "❌ ERROR: Repository setup phase failed. Cannot continue with test suite."; \
 		echo "   Previous stage (check dependencies) completed successfully."; \
 		echo ""; \
 		exit 1 \
 	)
-	@$(MAKE) --no-print-directory _cluster || ( \
+	@$(MAKE) --no-print-directory _cluster RESULTS_DIR=$(RESULTS_DIR) || ( \
 		echo ""; \
 		echo "❌ ERROR: Cluster deployment phase failed. Cannot continue with test suite."; \
 		echo "   Previous stages (check dependencies, setup) completed successfully."; \
 		echo ""; \
 		exit 1 \
 	)
-	@$(MAKE) --no-print-directory _generate-yamls || ( \
+	@$(MAKE) --no-print-directory _generate-yamls RESULTS_DIR=$(RESULTS_DIR) || ( \
 		echo ""; \
 		echo "❌ ERROR: YAML generation phase failed. Cannot continue with test suite."; \
 		echo "   Previous stages (check dependencies, setup, cluster) completed successfully."; \
 		echo ""; \
 		exit 1 \
 	)
-	@$(MAKE) --no-print-directory _deploy-crs || ( \
+	@$(MAKE) --no-print-directory _deploy-crs RESULTS_DIR=$(RESULTS_DIR) || ( \
 		echo ""; \
 		echo "❌ ERROR: CR deployment phase failed. Cannot continue with test suite."; \
 		echo "   Previous stages (check dependencies, setup, cluster, YAML generation) completed successfully."; \
 		echo ""; \
 		exit 1 \
 	)
-	@$(MAKE) --no-print-directory _verify || ( \
+	@$(MAKE) --no-print-directory _verify RESULTS_DIR=$(RESULTS_DIR) || ( \
 		echo ""; \
 		echo "❌ ERROR: Cluster verification phase failed."; \
 		echo "   Previous stages completed successfully but final verification encountered issues."; \
 		echo ""; \
 		exit 1 \
 	)
-	@$(MAKE) --no-print-directory _delete || ( \
+	@$(MAKE) --no-print-directory _delete RESULTS_DIR=$(RESULTS_DIR) || ( \
 		echo ""; \
 		echo "❌ ERROR: Cluster deletion phase failed."; \
 		echo "   Previous stages completed successfully but cluster deletion encountered issues."; \

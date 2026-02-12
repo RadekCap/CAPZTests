@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -90,6 +91,7 @@ func RunCommand(t *testing.T, name string, args ...string) (string, error) {
 
 	// Also log to test output
 	t.Logf("Executing command: %s", cmdStr)
+	logCommandToFile(t.Name(), cmdStr)
 
 	cmd := exec.Command(name, args...)
 	output, err := cmd.CombinedOutput()
@@ -110,6 +112,7 @@ func RunCommandQuiet(t *testing.T, name string, args ...string) (string, error) 
 
 	// Only log to test output (not TTY)
 	t.Logf("Executing command (quiet): %s", cmdStr)
+	logCommandToFile(t.Name(), cmdStr)
 
 	cmd := exec.Command(name, args...)
 	output, err := cmd.CombinedOutput()
@@ -155,6 +158,7 @@ func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string,
 
 	_, _ = fmt.Fprintf(tty, "Running (streaming): %s\n", cmdStr)
 	t.Logf("Executing command (streaming): %s", cmdStr)
+	logCommandToFile(t.Name(), cmdStr)
 
 	cmd := exec.Command(name, args...)
 
@@ -243,6 +247,59 @@ func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string,
 	mu.Unlock()
 
 	return output, cmdErr
+}
+
+// commandLogDir caches the resolved results directory for command logging.
+// commandLogOnce ensures the directory is resolved only once per test run.
+// commandLogSeen tracks entries already written to deduplicate polling loop commands.
+var (
+	commandLogDir  string
+	commandLogOnce sync.Once
+	commandLogSeen map[string]bool
+	commandLogMu   sync.Mutex
+)
+
+// resolveCommandLogDir returns the results directory path for command logging.
+func resolveCommandLogDir() string {
+	if dir := os.Getenv("TEST_RESULTS_DIR"); dir != "" {
+		return dir
+	}
+	return GetResultsDir()
+}
+
+// logCommandToFile appends a command entry to commands.log in the results directory.
+// Duplicate entries (same test name and command) are skipped to avoid polluting
+// the log with repeated polling commands.
+// Silently no-ops if the results directory is unavailable.
+func logCommandToFile(testName, cmdStr string) {
+	commandLogOnce.Do(func() {
+		commandLogDir = resolveCommandLogDir()
+		commandLogSeen = make(map[string]bool)
+	})
+	if commandLogDir == "" {
+		return
+	}
+
+	entry := fmt.Sprintf("%s: %s", testName, cmdStr)
+
+	commandLogMu.Lock()
+	if commandLogSeen[entry] {
+		commandLogMu.Unlock()
+		return
+	}
+	commandLogSeen[entry] = true
+	commandLogMu.Unlock()
+
+	logPath := filepath.Join(commandLogDir, "commands.log")
+
+	// #nosec G304 -- path constructed from results directory and fixed filename
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	fmt.Fprintf(f, "%s\n", entry)
 }
 
 // SetEnvVar sets an environment variable for testing
@@ -351,6 +408,7 @@ func ReportProgress(t *testing.T, iteration int, elapsed, remaining, timeout tim
 		elapsed.Round(time.Second),
 		remaining.Round(time.Second),
 		percentage)
+	PrintToTTY("─────────────────────────────────────────────────────────────────────────\n")
 
 	// Also log to test output
 	t.Logf("Waiting iteration %d (elapsed: %v, remaining: %v, %d%%)",
@@ -513,6 +571,58 @@ func ExtractAROControlPlaneNameFromYAML(filePath string) (string, error) {
 	return "", fmt.Errorf("no AROControlPlane resource found in %s", filePath)
 }
 
+// ExtractMachinePoolNameFromYAML extracts the MachinePool resource name from a YAML file.
+// It looks for a resource with kind "MachinePool" and apiVersion starting with
+// "cluster.x-k8s.io/" and returns its metadata.name.
+func ExtractMachinePoolNameFromYAML(filePath string) (string, error) {
+	if _, err := os.Stat(filePath); err != nil {
+		return "", fmt.Errorf("file not accessible: %w", err)
+	}
+
+	// #nosec G304 - filePath comes from test configuration
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	docs := strings.Split(string(data), "---")
+	for _, doc := range docs {
+		doc = strings.TrimSpace(doc)
+		if doc == "" {
+			continue
+		}
+
+		var content map[string]interface{}
+		if err := yaml.Unmarshal([]byte(doc), &content); err != nil {
+			continue
+		}
+
+		kind, ok := content["kind"].(string)
+		if !ok || kind != "MachinePool" {
+			continue
+		}
+
+		apiVersion, ok := content["apiVersion"].(string)
+		if !ok || !strings.HasPrefix(apiVersion, "cluster.x-k8s.io/") {
+			continue
+		}
+
+		metadata, ok := content["metadata"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		name, ok := metadata["name"].(string)
+		if !ok || name == "" {
+			continue
+		}
+
+		return name, nil
+	}
+
+	return "", fmt.Errorf("no MachinePool resource found in %s", filePath)
+}
+
 // CheckYAMLConfigMatch verifies that existing YAML files match the current configuration.
 // It extracts the cluster name from the aro.yaml file and compares it with the expected
 // cluster name prefix. This is used to detect configuration mismatches that would cause
@@ -653,6 +763,188 @@ func FormatAROControlPlaneConditions(jsonData string) string {
 	}
 
 	return result.String()
+}
+
+// AROClusterResourceStatus represents a resource entry from AROCluster status.resources[]
+type AROClusterResourceStatus struct {
+	Ready    bool `json:"ready"`
+	Resource struct {
+		Group   string `json:"group"`
+		Kind    string `json:"kind"`
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"resource"`
+}
+
+// AROClusterStatus represents the status section of the AROCluster resource
+type AROClusterStatus struct {
+	Conditions []AROControlPlaneCondition `json:"conditions"`
+	Resources  []AROClusterResourceStatus `json:"resources"`
+	Ready      bool                       `json:"ready"`
+}
+
+// ResourceKindSummary holds the ready/total count for a single resource kind.
+type ResourceKindSummary struct {
+	Kind  string
+	Ready int
+	Total int
+}
+
+// InfrastructureResourceStatus holds the parsed state of AROCluster infrastructure resources.
+type InfrastructureResourceStatus struct {
+	TotalResources int
+	ReadyResources int
+	KindSummaries  []ResourceKindSummary
+	Conditions     []AROControlPlaneCondition
+	NotReady       []AROClusterResourceStatus
+}
+
+// GetInfrastructureResourceStatus fetches and parses AROCluster.status.resources[] and status.conditions.
+// Returns an InfrastructureResourceStatus with per-kind breakdown and not-ready resource list.
+func GetInfrastructureResourceStatus(t *testing.T, kubeContext, namespace, clusterName string) InfrastructureResourceStatus {
+	t.Helper()
+
+	var result InfrastructureResourceStatus
+
+	output, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext, "-n", namespace,
+		"get", "arocluster", clusterName, "-o", "jsonpath={.status}")
+	if err != nil || strings.TrimSpace(output) == "" {
+		return result
+	}
+
+	var status AROClusterStatus
+	if err := json.Unmarshal([]byte(output), &status); err != nil {
+		return result
+	}
+
+	result.TotalResources = len(status.Resources)
+	result.Conditions = status.Conditions
+
+	// Count ready and collect not-ready resources
+	for _, r := range status.Resources {
+		if r.Ready {
+			result.ReadyResources++
+		} else {
+			result.NotReady = append(result.NotReady, r)
+		}
+	}
+
+	// Group resources by kind, preserving insertion order
+	var kindOrder []string
+	kindMap := make(map[string]*ResourceKindSummary)
+	for _, r := range status.Resources {
+		kind := r.Resource.Kind
+		if _, exists := kindMap[kind]; !exists {
+			kindOrder = append(kindOrder, kind)
+			kindMap[kind] = &ResourceKindSummary{Kind: kind}
+		}
+		kindMap[kind].Total++
+		if r.Ready {
+			kindMap[kind].Ready++
+		}
+	}
+
+	for _, kind := range kindOrder {
+		result.KindSummaries = append(result.KindSummaries, *kindMap[kind])
+	}
+
+	return result
+}
+
+// FormatInfrastructureProgress formats the infrastructure resource status as a box-style progress report.
+func FormatInfrastructureProgress(status InfrastructureResourceStatus) string {
+	var sb strings.Builder
+
+	// Calculate label width dynamically from actual data
+	labelWidth := len("Total") // minimum
+	for _, ks := range status.KindSummaries {
+		if len(ks.Kind) > labelWidth {
+			labelWidth = len(ks.Kind)
+		}
+	}
+	for _, cond := range status.Conditions {
+		if len(cond.Type) > labelWidth {
+			labelWidth = len(cond.Type)
+		}
+	}
+	labelWidth += 2 // ensure at least 2 spaces between label and value
+
+	const valueWidth = 36
+	// emojiWidth accounts for the 2 visual columns an emoji occupies in the terminal.
+	// Go's fmt.Sprintf counts an emoji as 1 rune, so we manually pad to avoid drift.
+	const emojiWidth = 2
+	// Inner width: " " + emoji(2) + " " + label + value + " "
+	innerWidth := 1 + emojiWidth + 1 + labelWidth + valueWidth + 1
+
+	border := strings.Repeat("─", innerWidth)
+
+	// Center the title within the box
+	title := "INFRASTRUCTURE RECONCILIATION"
+	titlePad := innerWidth - len(title)
+	titleLeft := titlePad / 2
+	titleRight := titlePad - titleLeft
+
+	// formatRow builds a row with emoji, label, and value.
+	// Pads manually instead of using fmt %-*s to correctly handle emoji visual width.
+	formatRow := func(emoji, label, value string) string {
+		if len(value) > valueWidth {
+			value = value[:valueWidth-3] + "..."
+		}
+		return "│ " + emoji + " " +
+			label + strings.Repeat(" ", labelWidth-len(label)) +
+			value + strings.Repeat(" ", valueWidth-len(value)) +
+			" │\n"
+	}
+
+	sb.WriteString("┌" + border + "┐\n")
+	sb.WriteString("│" + strings.Repeat(" ", titleLeft) + title + strings.Repeat(" ", titleRight) + "│\n")
+	sb.WriteString("├" + border + "┤\n")
+
+	// Per-kind breakdown
+	for _, ks := range status.KindSummaries {
+		icon := "⏳"
+		if ks.Ready == ks.Total {
+			icon = "✅"
+		}
+		sb.WriteString(formatRow(icon, ks.Kind, fmt.Sprintf("%d/%d", ks.Ready, ks.Total)))
+	}
+
+	// Summary separator and totals
+	sb.WriteString("├" + border + "┤\n")
+
+	if status.ReadyResources == status.TotalResources {
+		sb.WriteString(formatRow("✅", "Total", fmt.Sprintf("%d/%d resources reconciled", status.ReadyResources, status.TotalResources)))
+	} else {
+		sb.WriteString(formatRow("📦", "Total", fmt.Sprintf("%d/%d resources reconciled", status.ReadyResources, status.TotalResources)))
+	}
+
+	// AROCluster conditions
+	for _, cond := range status.Conditions {
+		icon := "⏳"
+		if cond.Status == "True" {
+			icon = "✅"
+		}
+		detail := cond.Status
+		if cond.Status != "True" && cond.Reason != "" {
+			detail = fmt.Sprintf("%s (%s)", cond.Status, cond.Reason)
+		}
+		sb.WriteString(formatRow(icon, cond.Type, detail))
+	}
+
+	sb.WriteString("└" + border + "┘\n")
+
+	return sb.String()
+}
+
+// ReportInfrastructureProgress prints infrastructure reconciliation status to TTY and test log.
+func ReportInfrastructureProgress(t *testing.T, iteration int, elapsed, remaining time.Duration, status InfrastructureResourceStatus) {
+	t.Helper()
+
+	PrintToTTY("[%d] 📋 AROCluster infrastructure:\n", iteration)
+	PrintToTTY("%s", FormatInfrastructureProgress(status))
+
+	// Log summary for test output
+	t.Logf("Infrastructure progress: %d/%d resources reconciled", status.ReadyResources, status.TotalResources)
 }
 
 // EnsureAzureCredentialsSet ensures Azure credentials are available as environment variables.
@@ -1016,7 +1308,7 @@ func ApplyWithRetryInNamespace(t *testing.T, kubeContext, namespace, yamlPath st
 		PrintToTTY("[%d/%d] Applying %s to namespace %s...\n", attempt, maxRetries, yamlPath, namespace)
 		t.Logf("Applying %s to namespace %s (attempt %d/%d)", yamlPath, namespace, attempt, maxRetries)
 
-		output, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext, "-n", namespace, "apply", "-f", yamlPath)
+		output, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext, "-n", namespace, "apply", "--validate=warn", "-f", yamlPath)
 
 		// Check if apply was successful
 		if err == nil || IsKubectlApplySuccess(output) {
