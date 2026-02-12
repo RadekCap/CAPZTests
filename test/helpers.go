@@ -293,13 +293,13 @@ func logCommandToFile(testName, cmdStr string) {
 	logPath := filepath.Join(commandLogDir, "commands.log")
 
 	// #nosec G304 -- path constructed from results directory and fixed filename
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
-	fmt.Fprintf(f, "%s\n", entry)
+	_, _ = fmt.Fprintf(f, "%s\n", entry)
 }
 
 // SetEnvVar sets an environment variable for testing
