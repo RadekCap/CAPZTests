@@ -93,7 +93,7 @@ func RunCommand(t *testing.T, name string, args ...string) (string, error) {
 	t.Logf("Executing command: %s", cmdStr)
 	logCommandToFile(t.Name(), cmdStr)
 
-	cmd := exec.Command(name, args...) // #nosec G204 -- test helper designed to execute arbitrary commands for test orchestration
+	cmd := exec.Command(name, args...) // #nosec G204 G702 -- test helper designed to execute arbitrary commands for test orchestration
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
 }
@@ -114,7 +114,7 @@ func RunCommandQuiet(t *testing.T, name string, args ...string) (string, error) 
 	t.Logf("Executing command (quiet): %s", cmdStr)
 	logCommandToFile(t.Name(), cmdStr)
 
-	cmd := exec.Command(name, args...) // #nosec G204 -- test helper designed to execute arbitrary commands for test orchestration
+	cmd := exec.Command(name, args...) // #nosec G204 G702 -- test helper designed to execute arbitrary commands for test orchestration
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
 }
@@ -160,7 +160,7 @@ func RunCommandWithStreaming(t *testing.T, name string, args ...string) (string,
 	t.Logf("Executing command (streaming): %s", cmdStr)
 	logCommandToFile(t.Name(), cmdStr)
 
-	cmd := exec.Command(name, args...) // #nosec G204 -- test helper designed to execute arbitrary commands for test orchestration
+	cmd := exec.Command(name, args...) // #nosec G204 G702 -- test helper designed to execute arbitrary commands for test orchestration
 
 	// Create pipes for stdout and stderr
 	stdout, err := cmd.StdoutPipe()
@@ -2233,7 +2233,7 @@ func GetResultsDir() string {
 		// Normalize path to resolve relative components like ".."
 		cleanDir := filepath.Clean(envDir)
 		// Ensure directory exists
-		if err := os.MkdirAll(cleanDir, 0750); err == nil {
+		if err := os.MkdirAll(cleanDir, 0750); err == nil { // #nosec G703 -- path from trusted TEST_RESULTS_DIR env var set by Makefile
 			return cleanDir
 		}
 	}
