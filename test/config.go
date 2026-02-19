@@ -30,7 +30,7 @@ const (
 	// DefaultCAPZUser is the default user identifier for CAPZ resources.
 	// Used in ClusterNamePrefix (for resource group naming) and User field.
 	// Extracted to a constant to ensure consistency across all usages.
-	DefaultCAPZUser = "rcapa"
+	DefaultCAPZUser = "rcapd"
 
 	// DefaultDeploymentEnv is the default deployment environment identifier.
 	// Used in ClusterNamePrefix and Environment field.
@@ -38,8 +38,6 @@ const (
 
 	// MCE component names as used in mce.spec.overrides.components
 	MCEComponentCAPI = "cluster-api"
-	// Deprecated: Use config.InfraProviders[i].MCEComponentName instead.
-	MCEComponentCAPZ = "cluster-api-provider-azure-preview"
 
 	// DefaultHelmInstallTimeout is the default timeout for Helm install operations
 	// (e.g., cert-manager installation during Kind cluster setup).
@@ -324,10 +322,13 @@ func NewTestConfig() *TestConfig {
 	// Determine infrastructure provider
 	infraProviderName := GetEnvOrDefault("INFRA_PROVIDER", "aro")
 
+	// Parse ASO controller timeout unconditionally so that
+	// ASOControllerTimeout is always a valid duration (used by ValidateAllConfigurations).
+	asoTimeout := parseASOControllerTimeout()
+
 	// Resolve provider-specific namespace and build provider config
 	var providerNamespace string
 	var infraProviders []InfraProvider
-	var asoTimeout time.Duration
 	var defaultGenScriptPath string
 
 	switch infraProviderName {
@@ -339,7 +340,6 @@ func NewTestConfig() *TestConfig {
 		infraProviderName = "aro" // normalize unknown values
 		providerNamespace = getControllerNamespace("CAPZ_NAMESPACE", "capz-system")
 		azureProvider := NewAzureProvider(providerNamespace)
-		asoTimeout = parseASOControllerTimeout()
 		for i := range azureProvider.Controllers {
 			if azureProvider.Controllers[i].DisplayName == "ASO" {
 				azureProvider.Controllers[i].Timeout = asoTimeout
@@ -351,8 +351,8 @@ func NewTestConfig() *TestConfig {
 
 	return &TestConfig{
 		// Repository defaults
-		RepoURL:    GetEnvOrDefault("ARO_REPO_URL", "https://github.com/marek-veber/cluster-api-installer"),
-		RepoBranch: GetEnvOrDefault("ARO_REPO_BRANCH", "capi-tests"),
+		RepoURL:    GetEnvOrDefault("ARO_REPO_URL", "https://github.com/stolostron/cluster-api-installer"),
+		RepoBranch: GetEnvOrDefault("ARO_REPO_BRANCH", "main"),
 		RepoDir:    getDefaultRepoDir(),
 
 		// Cluster defaults

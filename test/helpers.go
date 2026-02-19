@@ -1072,7 +1072,7 @@ containerdConfigPatches:
 nodes:
 - role: control-plane
   extraMounts:
-  - hostPath: %s
+  - hostPath: "%s"
     containerPath: /var/lib/kubelet/config.json
 `, dockerConfigPath)
 
