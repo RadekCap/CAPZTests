@@ -1,19 +1,9 @@
 name: Cluster Preparation
 
-# DISABLED: This workflow requires Azure credentials not available in GitHub Actions.
-# To re-enable, uncomment the triggers below and configure Azure secrets.
+# Manual-only trigger. Requires Azure secrets configured in repository settings:
+#   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
 on:
-  # workflow_dispatch:
-  # push:
-  #   branches: [ "**" ]
-  # pull_request:
-  #   branches: [ "**" ]
   workflow_dispatch:
-    inputs:
-      placeholder:
-        description: 'Workflow is disabled - do not run'
-        required: false
-        default: 'disabled'
 
 permissions:
   contents: read
@@ -21,8 +11,13 @@ permissions:
 
 env:
   ARO_REPO_URL: https://github.com/stolostron/cluster-api-installer.git
-  ARO_REPO_BRANCH: ARO-ASO
+  ARO_REPO_BRANCH: main
   ARO_REPO_DIR: /tmp/cluster-api-installer-aro
+  USE_KIND: "true"
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
 jobs:
   test-kind:
@@ -31,6 +26,20 @@ jobs:
     timeout-minutes: 45
 
     steps:
+    - name: Validate Azure secrets
+      run: |
+        missing=""
+        [ -z "$AZURE_TENANT_ID" ] && missing="$missing AZURE_TENANT_ID"
+        [ -z "$AZURE_SUBSCRIPTION_ID" ] && missing="$missing AZURE_SUBSCRIPTION_ID"
+        [ -z "$AZURE_CLIENT_ID" ] && missing="$missing AZURE_CLIENT_ID"
+        [ -z "$AZURE_CLIENT_SECRET" ] && missing="$missing AZURE_CLIENT_SECRET"
+        if [ -n "$missing" ]; then
+          echo "::error::Missing required repository secrets:$missing"
+          echo "Configure these in Settings > Secrets and variables > Actions"
+          exit 1
+        fi
+        echo "All required Azure secrets are configured"
+
     - name: Checkout code
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -138,57 +147,6 @@ jobs:
         name: test-results-kind-cluster
         path: test-results/
         retention-days: 30
-
-    - name: Create GitHub issue on failure
-      if: failure() && github.event_name != 'pull_request'
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        # Check if there's already an open issue for this workflow
-        WORKFLOW_NAME="Kind Cluster Preparation"
-        EXISTING_ISSUE=$(gh issue list --label "automated" --label "test-failure" --state open --json number,title --jq ".[] | select(.title | contains(\"[$WORKFLOW_NAME]\")) | .number | select(. != null)" | head -1)
-
-        if [ -n "$EXISTING_ISSUE" ]; then
-          echo "Issue already exists: #$EXISTING_ISSUE"
-          gh issue comment $EXISTING_ISSUE --body "Workflow failed again in run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        else
-          # Extract failed tests from JSON
-          FAILED_TESTS=""
-          if [ -f test-results/tests.json ]; then
-            FAILED_TESTS=$(jq -r 'select(.Test != null and .Action == "fail") | .Test' test-results/tests.json | head -5)
-          fi
-
-          # Create issue body
-          cat > issue_body.md << EOF
-        ## Kind Cluster Preparation Workflow Failed
-
-        **Run URL:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        **Branch:** ${{ github.ref_name }}
-        **Commit:** ${{ github.sha }}
-        **Triggered by:** ${{ github.event_name }}
-
-        ### Failed Tests
-        EOF
-
-          if [ -n "$FAILED_TESTS" ]; then
-            echo '```' >> issue_body.md
-            echo "$FAILED_TESTS" >> issue_body.md
-            echo '```' >> issue_body.md
-          else
-            echo "No test results available" >> issue_body.md
-          fi
-
-          echo "" >> issue_body.md
-          echo "---" >> issue_body.md
-          echo "*This issue was automatically created by the CI workflow*" >> issue_body.md
-
-          # Create the issue
-          gh issue create \
-            --title "[$WORKFLOW_NAME] Workflow failed on ${{ github.ref_name }}" \
-            --body-file issue_body.md \
-            --label "automated" \
-            --label "test-failure"
-        fi
 
     - name: Fail if tests failed
       if: steps.test-run.outcome == 'failure'
