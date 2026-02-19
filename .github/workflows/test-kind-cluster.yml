@@ -10,8 +10,8 @@ permissions:
   issues: write
 
 env:
-  ARO_REPO_URL: https://github.com/stolostron/cluster-api-installer.git
-  ARO_REPO_BRANCH: main
+  ARO_REPO_URL: https://github.com/marek-veber/cluster-api-installer.git
+  ARO_REPO_BRANCH: capi-tests
   ARO_REPO_DIR: /tmp/cluster-api-installer-aro
   USE_KIND: "true"
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
