@@ -1543,10 +1543,10 @@ func FormatAzureError(info *AzureErrorInfo) string {
 	}
 
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("\n=== Azure Error Detected: %s ===\n", info.Message))
+	fmt.Fprintf(&result, "\n=== Azure Error Detected: %s ===\n", info.Message)
 	result.WriteString("\nRemediation steps:\n")
 	for _, step := range info.Remediation {
-		result.WriteString(fmt.Sprintf("  %s\n", step))
+		fmt.Fprintf(&result, "  %s\n", step)
 	}
 	result.WriteString("\n")
 
@@ -1779,17 +1779,17 @@ func FormatComponentVersions(versions []ComponentVersion, config *TestConfig) st
 	if config != nil {
 		// Local Kind cluster (management cluster)
 		result.WriteString("\nLocal Kind Cluster:\n")
-		result.WriteString(fmt.Sprintf("  Management Cluster: %s\n", config.ManagementClusterName))
+		fmt.Fprintf(&result, "  Management Cluster: %s\n", config.ManagementClusterName)
 
 		// Azure ARO cluster (workload cluster)
 		result.WriteString("\nAzure ARO Cluster:\n")
-		result.WriteString(fmt.Sprintf("  Workload Cluster:   %s\n", config.WorkloadClusterName))
-		result.WriteString(fmt.Sprintf("  Region:             %s\n", config.Region))
+		fmt.Fprintf(&result, "  Workload Cluster:   %s\n", config.WorkloadClusterName)
+		fmt.Fprintf(&result, "  Region:             %s\n", config.Region)
 		if config.AzureSubscriptionName != "" {
-			result.WriteString(fmt.Sprintf("  Subscription:       %s\n", config.AzureSubscriptionName))
+			fmt.Fprintf(&result, "  Subscription:       %s\n", config.AzureSubscriptionName)
 		}
-		result.WriteString(fmt.Sprintf("  Resource Group:     %s-resgroup\n", config.ClusterNamePrefix))
-		result.WriteString(fmt.Sprintf("  OpenShift Version:  %s\n", config.OCPVersion))
+		fmt.Fprintf(&result, "  Resource Group:     %s-resgroup\n", config.ClusterNamePrefix)
+		fmt.Fprintf(&result, "  OpenShift Version:  %s\n", config.OCPVersion)
 	}
 
 	// Used repositories
@@ -1798,22 +1798,22 @@ func FormatComponentVersions(versions []ComponentVersion, config *TestConfig) st
 	if len(repos) > 0 {
 		result.WriteString("\n=== USED REPOSITORIES ===\n\n")
 		for _, repo := range repos {
-			result.WriteString(fmt.Sprintf("- %s\n", repo.URL))
-			result.WriteString(fmt.Sprintf("  Branch: %s\n", repo.Branch))
+			fmt.Fprintf(&result, "- %s\n", repo.URL)
+			fmt.Fprintf(&result, "  Branch: %s\n", repo.Branch)
 		}
 	} else if config != nil && config.RepoURL != "" {
 		// Fallback to config values (works across separate test processes)
 		result.WriteString("\n=== USED REPOSITORIES ===\n\n")
-		result.WriteString(fmt.Sprintf("- %s\n", config.RepoURL))
-		result.WriteString(fmt.Sprintf("  Branch: %s\n", config.RepoBranch))
+		fmt.Fprintf(&result, "- %s\n", config.RepoURL)
+		fmt.Fprintf(&result, "  Branch: %s\n", config.RepoBranch)
 	}
 
 	// Component versions
 	result.WriteString("\n=== COMPONENT VERSIONS ===\n\n")
 
 	for _, v := range versions {
-		result.WriteString(fmt.Sprintf("%s: %s\n", v.Name, v.Version))
-		result.WriteString(fmt.Sprintf("  Image: %s\n", v.Image))
+		fmt.Fprintf(&result, "%s: %s\n", v.Name, v.Version)
+		fmt.Fprintf(&result, "  Image: %s\n", v.Image)
 	}
 
 	return result.String()
@@ -2142,11 +2142,11 @@ func FormatControllerLogSummaries(summaries []ControllerLogSummary) string {
 			icon = "⚠️"
 		}
 
-		result.WriteString(fmt.Sprintf("%s %s Controller:\n", icon, s.Name))
-		result.WriteString(fmt.Sprintf("   Errors: %d | Warnings: %d\n", s.ErrorCount, s.WarnCount))
+		fmt.Fprintf(&result, "%s %s Controller:\n", icon, s.Name)
+		fmt.Fprintf(&result, "   Errors: %d | Warnings: %d\n", s.ErrorCount, s.WarnCount)
 
 		if s.LogFile != "" {
-			result.WriteString(fmt.Sprintf("   Log file: %s\n", s.LogFile))
+			fmt.Fprintf(&result, "   Log file: %s\n", s.LogFile)
 		}
 
 		// Show sample error messages
@@ -2154,7 +2154,7 @@ func FormatControllerLogSummaries(summaries []ControllerLogSummary) string {
 			result.WriteString("   Sample errors:\n")
 			for i, err := range s.Errors {
 				if i >= 3 { // Show only first 3 in summary
-					result.WriteString(fmt.Sprintf("   ... and %d more errors\n", len(s.Errors)-3))
+					fmt.Fprintf(&result, "   ... and %d more errors\n", len(s.Errors)-3)
 					break
 				}
 				// Truncate long lines
@@ -2162,7 +2162,7 @@ func FormatControllerLogSummaries(summaries []ControllerLogSummary) string {
 				if len(errLine) > 200 {
 					errLine = errLine[:200] + "..."
 				}
-				result.WriteString(fmt.Sprintf("     - %s\n", errLine))
+				fmt.Fprintf(&result, "     - %s\n", errLine)
 			}
 		}
 
@@ -2171,7 +2171,7 @@ func FormatControllerLogSummaries(summaries []ControllerLogSummary) string {
 
 	// Overall summary
 	result.WriteString("─────────────────────────────\n")
-	result.WriteString(fmt.Sprintf("Total: %d errors, %d warnings across all controllers\n", totalErrors, totalWarnings))
+	fmt.Fprintf(&result, "Total: %d errors, %d warnings across all controllers\n", totalErrors, totalWarnings)
 
 	if totalErrors > 0 {
 		result.WriteString("⚠️  Review controller logs for details on errors.\n")
@@ -2492,7 +2492,7 @@ func FormatDeletionProgress(status DeletionResourceStatus) string {
 			if len(f) > 53 {
 				f = f[:50] + "..."
 			}
-			sb.WriteString(fmt.Sprintf("│      - %-53s│\n", f))
+			fmt.Fprintf(&sb, "│      - %-53s│\n", f)
 		}
 	}
 
@@ -2621,7 +2621,7 @@ func ValidateAzureSubscriptionAccess(t *testing.T, subscriptionID string) error 
 func formatRemediationSteps(steps []string) string {
 	var result strings.Builder
 	for _, step := range steps {
-		result.WriteString(fmt.Sprintf("    %s\n", step))
+		fmt.Fprintf(&result, "    %s\n", step)
 	}
 	return result.String()
 }
@@ -2937,27 +2937,27 @@ func FormatValidationResults(results []ConfigValidationResult) string {
 			icon = "⏭️"
 		}
 
-		sb.WriteString(fmt.Sprintf("%s %s: %s\n", icon, r.Variable, r.Value))
+		fmt.Fprintf(&sb, "%s %s: %s\n", icon, r.Variable, r.Value)
 
 		if r.SkipReason != "" {
-			sb.WriteString(fmt.Sprintf("   Skipped: %s\n", r.SkipReason))
+			fmt.Fprintf(&sb, "   Skipped: %s\n", r.SkipReason)
 		}
 
 		if r.Error != nil {
 			// Indent error message
 			errLines := strings.Split(r.Error.Error(), "\n")
 			for _, line := range errLines {
-				sb.WriteString(fmt.Sprintf("   %s\n", line))
+				fmt.Fprintf(&sb, "   %s\n", line)
 			}
 		}
 	}
 
 	sb.WriteString("\n─────────────────────────────────────────\n")
 	if criticalErrors > 0 {
-		sb.WriteString(fmt.Sprintf("❌ %d critical error(s) found - deployment will fail!\n", criticalErrors))
+		fmt.Fprintf(&sb, "❌ %d critical error(s) found - deployment will fail!\n", criticalErrors)
 	}
 	if warnings > 0 {
-		sb.WriteString(fmt.Sprintf("⚠️  %d warning(s) found - review recommended\n", warnings))
+		fmt.Fprintf(&sb, "⚠️  %d warning(s) found - review recommended\n", warnings)
 	}
 	if criticalErrors == 0 && warnings == 0 {
 		sb.WriteString("✅ All configuration validations passed\n")
@@ -3033,10 +3033,10 @@ func FormatMismatchedClustersError(mismatched []string, expectedPrefix, namespac
 
 	sb.WriteString("Found existing Cluster CRs that don't match current configuration:\n\n")
 	for _, name := range mismatched {
-		sb.WriteString(fmt.Sprintf("  • %s\n", name))
+		fmt.Fprintf(&sb, "  • %s\n", name)
 	}
 
-	sb.WriteString(fmt.Sprintf("\nCurrent config expects cluster names starting with: %s\n\n", expectedPrefix))
+	fmt.Fprintf(&sb, "\nCurrent config expects cluster names starting with: %s\n\n", expectedPrefix)
 
 	sb.WriteString("This typically happens when CAPZ_USER was changed without cleaning up\n")
 	sb.WriteString("the previous cluster resources. Deploying new clusters alongside old ones\n")
@@ -3046,13 +3046,13 @@ func FormatMismatchedClustersError(mismatched []string, expectedPrefix, namespac
 
 	// Single cluster cleanup
 	if len(mismatched) == 1 {
-		sb.WriteString(fmt.Sprintf("  kubectl delete cluster %s -n %s\n\n", mismatched[0], namespace))
+		fmt.Fprintf(&sb, "  kubectl delete cluster %s -n %s\n\n", mismatched[0], namespace)
 	} else {
 		// Multiple clusters
 		sb.WriteString("  # Delete specific cluster:\n")
-		sb.WriteString(fmt.Sprintf("  kubectl delete cluster %s -n %s\n\n", mismatched[0], namespace))
+		fmt.Fprintf(&sb, "  kubectl delete cluster %s -n %s\n\n", mismatched[0], namespace)
 		sb.WriteString("  # Or delete all clusters in namespace:\n")
-		sb.WriteString(fmt.Sprintf("  kubectl delete cluster --all -n %s\n\n", namespace))
+		fmt.Fprintf(&sb, "  kubectl delete cluster --all -n %s\n\n", namespace)
 	}
 
 	sb.WriteString("  # Or use make clean for complete cleanup:\n")
