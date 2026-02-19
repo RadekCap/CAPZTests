@@ -324,7 +324,7 @@ func SetEnvVar(t *testing.T, key, value string) {
 
 // FileExists checks if a file exists at the given path
 func FileExists(path string) bool {
-	_, err := os.Stat(path)
+	_, err := os.Stat(path) // #nosec G703 -- test helper only checks existence, no file content read
 	return err == nil
 }
 
