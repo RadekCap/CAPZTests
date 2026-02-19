@@ -3346,3 +3346,164 @@ func TestFormatMismatchedClustersError_HasInstructions(t *testing.T) {
 		t.Error("Error message should explain CAPZ_USER change scenario")
 	}
 }
+
+func TestResolveDockerConfigPath_Default(t *testing.T) {
+	// Save and clear DOCKER_SECRETS to test the default path
+	originalDockerConfig := os.Getenv("DOCKER_SECRETS")
+	_ = os.Unsetenv("DOCKER_SECRETS")
+	defer func() {
+		if originalDockerConfig != "" {
+			_ = os.Setenv("DOCKER_SECRETS", originalDockerConfig)
+		}
+	}()
+
+	path, found := ResolveDockerConfigPath()
+
+	homeDir, _ := os.UserHomeDir()
+	expectedPath := filepath.Join(homeDir, ".docker", "config.json")
+
+	if found {
+		if path != expectedPath {
+			t.Errorf("Expected path %s, got %s", expectedPath, path)
+		}
+		t.Logf("Docker config found at default path: %s", path)
+	} else {
+		t.Logf("No Docker config found at default path %s (expected on systems without Docker login)", expectedPath)
+	}
+}
+
+func TestResolveDockerConfigPath_CustomDockerConfig(t *testing.T) {
+	// Create a temp dir with a config.json
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+	if err := os.WriteFile(configPath, []byte("{}"), 0644); err != nil {
+		t.Fatalf("Failed to create test config: %v", err)
+	}
+
+	originalDockerConfig := os.Getenv("DOCKER_SECRETS")
+	_ = os.Setenv("DOCKER_SECRETS", tmpDir)
+	defer func() {
+		if originalDockerConfig != "" {
+			_ = os.Setenv("DOCKER_SECRETS", originalDockerConfig)
+		} else {
+			_ = os.Unsetenv("DOCKER_SECRETS")
+		}
+	}()
+
+	path, found := ResolveDockerConfigPath()
+	if !found {
+		t.Fatal("Expected to find Docker config via DOCKER_SECRETS env var")
+	}
+	if path != configPath {
+		t.Errorf("Expected %s, got %s", configPath, path)
+	}
+}
+
+func TestResolveDockerConfigPath_MissingFile(t *testing.T) {
+	// Point to a non-existent directory
+	_ = os.Setenv("DOCKER_SECRETS", "/nonexistent/path")
+	defer func() {
+		_ = os.Unsetenv("DOCKER_SECRETS")
+	}()
+
+	// Also ensure the default path doesn't exist by temporarily overriding HOME
+	originalHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", "/nonexistent")
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
+
+	_, found := ResolveDockerConfigPath()
+	if found {
+		t.Error("Expected no Docker config to be found with non-existent paths")
+	}
+}
+
+func TestGenerateKindConfig(t *testing.T) {
+	// Create a temp dir to simulate repo with scripts/ directory
+	tmpDir := t.TempDir()
+	scriptsDir := filepath.Join(tmpDir, "scripts")
+	if err := os.MkdirAll(scriptsDir, 0755); err != nil {
+		t.Fatalf("Failed to create scripts dir: %v", err)
+	}
+
+	// Create a fake docker config
+	dockerDir := t.TempDir()
+	dockerConfigPath := filepath.Join(dockerDir, "config.json")
+	if err := os.WriteFile(dockerConfigPath, []byte(`{"auths":{}}`), 0644); err != nil {
+		t.Fatalf("Failed to create test docker config: %v", err)
+	}
+
+	// Point DOCKER_SECRETS to our fake config
+	originalDockerConfig := os.Getenv("DOCKER_SECRETS")
+	_ = os.Setenv("DOCKER_SECRETS", dockerDir)
+	defer func() {
+		if originalDockerConfig != "" {
+			_ = os.Setenv("DOCKER_SECRETS", originalDockerConfig)
+		} else {
+			_ = os.Unsetenv("DOCKER_SECRETS")
+		}
+	}()
+
+	clusterName := "test-cluster"
+	path, err := GenerateKindConfig(t, tmpDir, clusterName)
+	if err != nil {
+		t.Fatalf("GenerateKindConfig failed: %v", err)
+	}
+
+	expectedPath := filepath.Join(scriptsDir, "kind-config-test-cluster.yaml")
+	if path != expectedPath {
+		t.Errorf("Expected path %s, got %s", expectedPath, path)
+	}
+
+	// Verify file contents
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read generated config: %v", err)
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "kind: Cluster") {
+		t.Error("Generated config should contain 'kind: Cluster'")
+	}
+	if !strings.Contains(contentStr, "kind.x-k8s.io/v1alpha4") {
+		t.Error("Generated config should contain Kind API version")
+	}
+	if !strings.Contains(contentStr, dockerConfigPath) {
+		t.Errorf("Generated config should reference Docker config path %s", dockerConfigPath)
+	}
+	if !strings.Contains(contentStr, "/var/lib/kubelet/config.json") {
+		t.Error("Generated config should mount to /var/lib/kubelet/config.json")
+	}
+}
+
+func TestGenerateKindConfig_NoDockerConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptsDir := filepath.Join(tmpDir, "scripts")
+	if err := os.MkdirAll(scriptsDir, 0755); err != nil {
+		t.Fatalf("Failed to create scripts dir: %v", err)
+	}
+
+	// Point to non-existent docker config
+	_ = os.Setenv("DOCKER_SECRETS", "/nonexistent")
+	originalHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", "/nonexistent")
+	defer func() {
+		_ = os.Unsetenv("DOCKER_SECRETS")
+		_ = os.Setenv("HOME", originalHome)
+	}()
+
+	path, err := GenerateKindConfig(t, tmpDir, "test-cluster")
+	if err != nil {
+		t.Fatalf("GenerateKindConfig should not error when Docker config is missing: %v", err)
+	}
+	if path != "" {
+		t.Errorf("Expected empty path when Docker config is missing, got %s", path)
+	}
+
+	// Verify no file was created
+	kindConfigPath := filepath.Join(scriptsDir, "kind-config-test-cluster.yaml")
+	if FileExists(kindConfigPath) {
+		t.Error("Kind config file should not be created when Docker config is missing")
+	}
+}

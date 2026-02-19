@@ -84,6 +84,18 @@ help: ## Display this help message
 	@echo "  6. make _verify          # Verify deployed cluster"
 	@echo "  7. make _delete          # Delete workload cluster and verify cleanup"
 	@echo "  8. make _cleanup         # Validate cleanup operations (optional, standalone)"
+	@echo ""
+	@echo "Quick start:"
+	@echo ""
+	@echo "  # ARO mode (default)"
+	@echo "  export INFRA_PROVIDER=aro"
+	@echo "  export USE_KIND=true"
+	@echo "  make _check-dep && make _setup && make _cluster"
+	@echo ""
+	@echo "  # ROSA mode"
+	@echo "  export INFRA_PROVIDER=rosa"
+	@echo "  export USE_KIND=true"
+	@echo "  make _check-dep && make _setup && make _cluster"
 
 test: _check-dep ## Run check dependencies tests only
 

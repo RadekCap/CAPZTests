@@ -12,16 +12,21 @@ import (
 
 // TestCheckDependencies_ToolAvailable verifies all required tools are installed
 func TestCheckDependencies_ToolAvailable(t *testing.T) {
-	requiredTools := []string{
+	config := NewTestConfig()
+
+	// Common tools required regardless of provider
+	commonTools := []string{
 		"docker",
 		"kind",
-		"az",
 		"oc",
 		"helm",
 		"git",
 		"kubectl",
 		"go",
 	}
+
+	// Add provider-specific tools (e.g., "az" for ARO, "aws" for ROSA)
+	requiredTools := append(commonTools, config.AllRequiredTools()...)
 
 	for _, tool := range requiredTools {
 		t.Run(tool, func(t *testing.T) {
@@ -256,6 +261,11 @@ func Sscanf(s string, format string, a ...interface{}) (int, error) {
 // they are validated by performing an actual login. If not set, the test falls back to checking
 // Azure CLI login status.
 func TestCheckDependencies_AzureAuthentication(t *testing.T) {
+	config := NewTestConfig()
+	if !config.HasProvider("aro") {
+		t.Skip("Skipping Azure authentication check (provider is not aro)")
+	}
+
 	// Skip in CI environments where Azure login may not be available
 	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
 		t.Skip("Skipping Azure authentication check in CI environment")
@@ -297,6 +307,11 @@ func TestCheckDependencies_AzureAuthentication(t *testing.T) {
 // When using Azure CLI, environment variables are auto-extracted if not set.
 // This provides seamless UX for users who are logged in with Azure CLI.
 func TestCheckDependencies_AzureEnvironment(t *testing.T) {
+	config := NewTestConfig()
+	if !config.HasProvider("aro") {
+		t.Skip("Skipping Azure environment validation (provider is not aro)")
+	}
+
 	// Skip in CI environments where Azure env vars may not be set
 	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
 		t.Skip("Skipping Azure environment validation in CI environment")
@@ -537,13 +552,16 @@ func TestCheckDependencies_Clusterctl_IsAvailable(t *testing.T) {
 // is within Azure/ARO limits. This catches configuration errors early (in phase 1)
 // rather than waiting for deployment failures during CR reconciliation.
 func TestCheckDependencies_NamingConstraints(t *testing.T) {
+	config := NewTestConfig()
+	if !config.HasProvider("aro") {
+		t.Skip("Skipping Azure naming constraints (provider is not aro)")
+	}
+
 	// Skip in CI environments where these env vars may not be configured
 	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
 		t.Skip("Skipping naming constraints validation in CI environment")
 		return
 	}
-
-	config := NewTestConfig()
 
 	// Validate domain prefix: ${CAPZ_USER}-${DEPLOYMENT_ENV} ≤ 15 chars
 	t.Run("DomainPrefix", func(t *testing.T) {
@@ -588,8 +606,8 @@ func TestCheckDependencies_DockerCredentialHelper(t *testing.T) {
 		return
 	}
 
-	// Determine Docker config directory (respect DOCKER_CONFIG env var)
-	dockerConfigDir := os.Getenv("DOCKER_CONFIG")
+	// Determine Docker config directory (respect DOCKER_SECRETS env var)
+	dockerConfigDir := os.Getenv("DOCKER_SECRETS")
 	if dockerConfigDir == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -726,13 +744,16 @@ func TestCheckDependencies_NamingCompliance(t *testing.T) {
 // TestCheckDependencies_AzureRegion validates that the configured Azure region is valid.
 // This catches invalid region configurations early before deployment begins.
 func TestCheckDependencies_AzureRegion(t *testing.T) {
+	config := NewTestConfig()
+	if !config.HasProvider("aro") {
+		t.Skip("Skipping Azure region validation (provider is not aro)")
+	}
+
 	// Skip in CI environments where Azure may not be available
 	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
 		t.Skip("Skipping Azure region validation in CI environment")
 		return
 	}
-
-	config := NewTestConfig()
 
 	if err := ValidateAzureRegion(t, config.Region); err != nil {
 		t.Errorf("Azure region validation failed:\n%v", err)
@@ -744,6 +765,11 @@ func TestCheckDependencies_AzureRegion(t *testing.T) {
 // TestCheckDependencies_AzureSubscriptionAccess validates that the Azure subscription is accessible.
 // This ensures the subscription exists and the current credentials have access before deployment.
 func TestCheckDependencies_AzureSubscriptionAccess(t *testing.T) {
+	config := NewTestConfig()
+	if !config.HasProvider("aro") {
+		t.Skip("Skipping Azure subscription access validation (provider is not aro)")
+	}
+
 	// Skip in CI environments where Azure credentials may not be available
 	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
 		t.Skip("Skipping Azure subscription access validation in CI environment")
@@ -870,6 +896,10 @@ func getToolInstallInstructions(tool string) string {
 			"  macOS: brew install go\n" +
 			"  Linux: Download from https://go.dev/dl/ and extract to /usr/local\n" +
 			"  All: https://go.dev/doc/install",
+		"aws": "Install AWS CLI:\n" +
+			"  macOS: brew install awscli\n" +
+			"  Linux: curl \"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip\" -o \"awscliv2.zip\" && unzip awscliv2.zip && sudo ./aws/install\n" +
+			"  All: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html",
 	}
 
 	if inst, ok := instructions[tool]; ok {

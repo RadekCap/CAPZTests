@@ -209,7 +209,13 @@ func TestExternalCluster_02_EnableMCE(t *testing.T) {
 
 	PrintToTTY("\n=== Checking MCE component status ===\n")
 
-	components := []string{MCEComponentCAPI, MCEComponentCAPZ}
+	// Build MCE component list from CAPI core + all providers
+	components := []string{MCEComponentCAPI}
+	for _, p := range config.InfraProviders {
+		if p.MCEComponentName != "" {
+			components = append(components, p.MCEComponentName)
+		}
+	}
 	enabledCount := 0
 	needsEnablement := false
 
@@ -268,25 +274,15 @@ func TestExternalCluster_02_EnableMCE(t *testing.T) {
 		PrintToTTY("Initial wait: 30 seconds for MCE to start deploying controllers...\n")
 		time.Sleep(30 * time.Second)
 
-		// Wait for controllers to become available
-		controllersToWait := []struct {
-			name       string
-			namespace  string
-			deployment string
-		}{
-			{"CAPI", config.CAPINamespace, "capi-controller-manager"},
-			{"CAPZ", config.CAPZNamespace, "capz-controller-manager"},
-			{"ASO", config.CAPZNamespace, "azureserviceoperator-controller-manager"},
-		}
-
-		for _, ctrl := range controllersToWait {
-			if err := WaitForMCEController(t, context, ctrl.namespace, ctrl.deployment, config.MCEEnablementTimeout); err != nil {
+		// Wait for controllers to become available (CAPI core + all provider controllers)
+		for _, ctrl := range config.AllControllers() {
+			if err := WaitForMCEController(t, context, ctrl.Namespace, ctrl.DeploymentName, config.MCEEnablementTimeout); err != nil {
 				t.Errorf("Failed waiting for %s controller: %v\n\n"+
 					"Troubleshooting steps:\n"+
 					"  1. Check component status: kubectl get mce multiclusterengine -o json | jq '.spec.overrides.components'\n"+
 					"  2. Check pod status: kubectl get pods -n %s\n"+
 					"  3. Check MCE operator logs: kubectl logs -n multicluster-engine -l control-plane=backplane-operator --tail=50\n",
-					ctrl.name, err, ctrl.namespace)
+					ctrl.DisplayName, err, ctrl.Namespace)
 			}
 		}
 
@@ -316,30 +312,21 @@ func TestExternalCluster_03_ControllersReady(t *testing.T) {
 	isMCE := IsMCECluster(t, context)
 
 	PrintToTTY("\n=== Checking for pre-installed controllers ===\n")
-	PrintToTTY("CAPI Namespace: %s\n", config.CAPINamespace)
-	PrintToTTY("CAPZ Namespace: %s\n", config.CAPZNamespace)
+	for _, ns := range config.AllNamespaces() {
+		PrintToTTY("Namespace: %s\n", ns)
+	}
 	if isMCE {
 		PrintToTTY("MCE Cluster: yes\n")
 	}
 	PrintToTTY("\n")
 
-	controllers := []struct {
-		name       string
-		namespace  string
-		deployment string
-	}{
-		{"CAPI", config.CAPINamespace, "capi-controller-manager"},
-		{"CAPZ", config.CAPZNamespace, "capz-controller-manager"},
-		{"ASO", config.CAPZNamespace, "azureserviceoperator-controller-manager"},
-	}
-
 	allFound := true
-	for _, ctrl := range controllers {
-		PrintToTTY("Checking %s controller manager...\n", ctrl.name)
-		_, err := RunCommand(t, "kubectl", "--context", context, "-n", ctrl.namespace,
-			"get", "deployment", ctrl.deployment)
+	for _, ctrl := range config.AllControllers() {
+		PrintToTTY("Checking %s controller manager...\n", ctrl.DisplayName)
+		_, err := RunCommand(t, "kubectl", "--context", context, "-n", ctrl.Namespace,
+			"get", "deployment", ctrl.DeploymentName)
 		if err != nil {
-			PrintToTTY("❌ %s controller not found in %s namespace\n", ctrl.name, ctrl.namespace)
+			PrintToTTY("❌ %s controller not found in %s namespace\n", ctrl.DisplayName, ctrl.Namespace)
 			allFound = false
 
 			// Provide MCE-specific remediation hints
@@ -349,13 +336,13 @@ func TestExternalCluster_03_ControllersReady(t *testing.T) {
 					"To enable auto-enablement: MCE_AUTO_ENABLE=true make test-all\n"+
 					"Or manually enable the component:\n"+
 					"  kubectl patch mce multiclusterengine --type=merge -p '{\"spec\":{\"overrides\":{\"components\":[{\"name\":\"%s\",\"enabled\":true}]}}}'",
-					ctrl.name, ctrl.namespace, MCEComponentCAPI)
+					ctrl.DisplayName, ctrl.Namespace, MCEComponentCAPI)
 			} else {
-				t.Errorf("%s controller not found in %s namespace: %v", ctrl.name, ctrl.namespace, err)
+				t.Errorf("%s controller not found in %s namespace: %v", ctrl.DisplayName, ctrl.Namespace, err)
 			}
 		} else {
-			PrintToTTY("✅ %s controller manager found\n", ctrl.name)
-			t.Logf("%s controller manager found in %s", ctrl.name, ctrl.namespace)
+			PrintToTTY("✅ %s controller manager found\n", ctrl.DisplayName)
+			t.Logf("%s controller manager found in %s", ctrl.DisplayName, ctrl.Namespace)
 		}
 	}
 
@@ -390,17 +377,6 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 	if !clusterExists {
 		PrintToTTY("Kind cluster '%s' not found - will deploy new cluster\n", config.ManagementClusterName)
 
-		// Ensure Azure credentials are available for the deployment script
-		// The script needs AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID to configure ASO
-		PrintToTTY("\n=== Ensuring Azure credentials are available ===\n")
-		if err := EnsureAzureCredentialsSet(t); err != nil {
-			PrintToTTY("❌ Failed to ensure Azure credentials: %v\n", err)
-			PrintToTTY("Please ensure you are logged into Azure CLI: az login\n\n")
-			t.Fatalf("Azure credentials required for deployment: %v", err)
-			return
-		}
-		PrintToTTY("✅ Azure credentials available\n")
-
 		// Deploy Kind cluster and CAPI/CAPZ/ASO controllers using deploy-charts.sh
 		// DO_INIT_KIND=true creates the Kind cluster and installs cert-manager
 		// DO_DEPLOY=true deploys the specified charts
@@ -409,6 +385,21 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 			PrintToTTY("❌ Deployment script not found: %s\n", deployScriptPath)
 			t.Errorf("Deployment script not found: %s", deployScriptPath)
 			return
+		}
+
+		// Generate Kind config file for private registry access
+		PrintToTTY("\n=== Generating Kind cluster configuration ===\n")
+		kindConfigPath, err := GenerateKindConfig(t, config.RepoDir, config.ManagementClusterName)
+		if err != nil {
+			PrintToTTY("❌ Failed to generate Kind config: %v\n", err)
+			t.Fatalf("Failed to generate Kind config: %v", err)
+			return
+		}
+		if kindConfigPath != "" {
+			PrintToTTY("✅ Kind config generated: %s\n", kindConfigPath)
+		} else {
+			PrintToTTY("⚠️  No Docker config found - Kind nodes will not have registry credentials\n")
+			PrintToTTY("   Private image pulls (e.g., quay.io/acm-d/) may fail with ErrImagePull\n")
 		}
 
 		PrintToTTY("\n=== Deploying Kind cluster '%s' with CAPI/CAPZ/ASO controllers ===\n", config.ManagementClusterName)
@@ -423,6 +414,18 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 		SetEnvVar(t, "KIND_CLUSTER_NAME", config.ManagementClusterName)
 		SetEnvVar(t, "DO_INIT_KIND", "true")
 		SetEnvVar(t, "DO_DEPLOY", "true")
+		// Disable the script's built-in deployment check — it assumes all providers
+		// share a namespace (capi-system), but charts may deploy to provider-specific
+		// namespaces (e.g., capz-system). Our own tests validate controller readiness
+		// with the correct namespace from InfraProvider config.
+		SetEnvVar(t, "DO_CHECK", "false")
+		// Format Go duration as a Helm-compatible duration string (e.g., "10m0s")
+		SetEnvVar(t, "HELM_INSTALL_TIMEOUT", config.HelmInstallTimeout.String())
+		// Pass generated Kind config to setup-kind-cluster.sh so it uses our
+		// config with Docker credentials mounted for private registry access
+		if kindConfigPath != "" {
+			SetEnvVar(t, "KIND_CFG_NAME", kindConfigPath)
+		}
 
 		// Change to repository directory for script execution
 		originalDir, err := os.Getwd()
@@ -439,17 +442,21 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 			t.Fatalf("Failed to change to repository directory: %v", err)
 		}
 
-		// Run the deployment script with chart arguments
-		t.Logf("Executing deployment script: %s cluster-api cluster-api-provider-azure", deployScriptPath)
-		t.Log("This will: deploy CAPI/CAPZ/ASO controllers to Kind cluster")
-		output, err = RunCommandWithStreaming(t, "bash", deployScriptPath, "cluster-api", "cluster-api-provider-azure")
+		// Run the deployment script with chart arguments from provider config
+		chartArgs := config.DeploymentChartArgs()
+		scriptArgs := append([]string{deployScriptPath}, chartArgs...)
+		t.Logf("Executing deployment script: %s %s", deployScriptPath, strings.Join(chartArgs, " "))
+		t.Log("This will: deploy CAPI and infrastructure provider controllers to Kind cluster")
+		output, err = RunCommandWithStreaming(t, "bash", scriptArgs...)
 		if err != nil {
 			PrintToTTY("\n❌ Failed to deploy controllers: %v\n", err)
 
-			// Check for known Azure errors and provide remediation guidance
-			if azureErr := DetectAzureError(output); azureErr != nil {
-				PrintToTTY("%s", FormatAzureError(azureErr))
-				t.Logf("Azure error detected: %s", azureErr.ErrorType)
+			// Check for known provider errors
+			if config.HasProvider("aro") {
+				if azureErr := DetectAzureError(output); azureErr != nil {
+					PrintToTTY("%s", FormatAzureError(azureErr))
+					t.Logf("Azure error detected: %s", azureErr.ErrorType)
+				}
 			}
 
 			t.Errorf("Failed to deploy controllers: %v\nOutput: %s", err, output)
@@ -460,16 +467,38 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 		PrintToTTY("\n✅ Kind cluster deployment script completed successfully\n\n")
 		t.Log("Kind cluster deployment script completed successfully")
 
-		// Patch the ASO credentials secret with actual Azure credentials
-		// The helm chart creates the secret with empty values, so we need to populate it
-		PrintToTTY("=== Patching ASO credentials secret ===\n")
-		context := config.GetKubeContext()
-		if err := PatchASOCredentialsSecret(t, context); err != nil {
-			PrintToTTY("❌ Failed to patch ASO credentials: %v\n", err)
-			t.Errorf("Failed to patch ASO credentials secret: %v", err)
-			return
+		// Ensure cloud credentials are available before patching secrets
+		if config.HasProvider("aro") {
+			PrintToTTY("=== Ensuring Azure credentials are available ===\n")
+			if err := EnsureAzureCredentialsSet(t); err != nil {
+				PrintToTTY("❌ Failed to ensure Azure credentials: %v\n", err)
+				PrintToTTY("Please ensure you are logged into Azure CLI: az login\n\n")
+				t.Fatalf("Azure credentials required for secret patching: %v", err)
+				return
+			}
+			PrintToTTY("✅ Azure credentials available\n\n")
 		}
-		PrintToTTY("✅ ASO credentials secret patched successfully\n\n")
+		if config.HasProvider("rosa") {
+			PrintToTTY("=== Ensuring AWS credentials are available ===\n")
+			if err := EnsureAWSCredentialsSet(t); err != nil {
+				PrintToTTY("❌ Failed to ensure AWS credentials: %v\n", err)
+				t.Fatalf("AWS credentials required for secret patching: %v", err)
+				return
+			}
+			PrintToTTY("✅ AWS credentials available\n\n")
+		}
+
+		// Patch provider-specific credentials after deployment
+		if config.HasProvider("aro") {
+			PrintToTTY("=== Patching ASO credentials secret ===\n")
+			context := config.GetKubeContext()
+			if err := PatchASOCredentialsSecret(t, context); err != nil {
+				PrintToTTY("❌ Failed to patch ASO credentials: %v\n", err)
+				t.Errorf("Failed to patch ASO credentials secret: %v", err)
+				return
+			}
+			PrintToTTY("✅ ASO credentials secret patched successfully\n\n")
+		}
 	} else {
 		PrintToTTY("✅ Kind cluster '%s' already exists\n\n", config.ManagementClusterName)
 		t.Logf("Kind cluster '%s' already exists", config.ManagementClusterName)
@@ -503,10 +532,10 @@ func TestKindCluster_KindClusterReady(t *testing.T) {
 	}
 }
 
-// TestKindCluster_CAPINamespacesExists verifies CAPI namespaces are installed
+// TestKindCluster_CAPINamespacesExists verifies controller namespaces are installed
 func TestKindCluster_CAPINamespacesExists(t *testing.T) {
 	PrintTestHeader(t, "TestKindCluster_CAPINamespacesExists",
-		"Verify CAPI and CAPZ namespaces exist in the management cluster")
+		"Verify CAPI and infrastructure provider namespaces exist in the management cluster")
 
 	config := NewTestConfig()
 
@@ -515,18 +544,12 @@ func TestKindCluster_CAPINamespacesExists(t *testing.T) {
 		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
 	}
 
-	PrintToTTY("\n=== Checking for CAPI namespaces ===\n")
-	t.Log("Checking for CAPI namespaces...")
+	PrintToTTY("\n=== Checking for controller namespaces ===\n")
+	t.Log("Checking for controller namespaces...")
 
 	context := config.GetKubeContext()
 
-	// Check for CAPI namespaces
-	expectedNamespaces := []string{
-		config.CAPINamespace,
-		config.CAPZNamespace,
-	}
-
-	for _, ns := range expectedNamespaces {
+	for _, ns := range config.AllNamespaces() {
 		PrintToTTY("Checking namespace: %s...\n", ns)
 
 		_, err := RunCommand(t, "kubectl", "--context", context, "get", "namespace", ns)
@@ -577,7 +600,7 @@ func TestKindCluster_CAPIControllerReady(t *testing.T) {
 
 	PrintToTTY("\n=== Waiting for CAPI controller manager ===\n")
 	PrintToTTY("Namespace: %s\n", config.CAPINamespace)
-	PrintToTTY("Deployment: capi-controller-manager\n")
+	PrintToTTY("Deployment: %s\n", CAPIControllerDeployment)
 	PrintToTTY("Timeout: %v | Poll interval: %v\n\n", timeout, pollInterval)
 
 	iteration := 0
@@ -590,8 +613,8 @@ func TestKindCluster_CAPIControllerReady(t *testing.T) {
 			t.Errorf("Timeout waiting for CAPI controller manager to be available after %v.\n\n"+
 				"Troubleshooting steps:\n"+
 				"  1. Check pod status: kubectl --context %s -n %s get pods\n"+
-				"  2. Check pod logs: kubectl --context %s -n %s logs -l cluster.x-k8s.io/provider=cluster-api --tail=50\n"+
-				"  3. Check pod events: kubectl --context %s -n %s describe deployment capi-controller-manager\n"+
+				"  2. Check pod logs: kubectl --context %s -n %s logs -l %s --tail=50\n"+
+				"  3. Check pod events: kubectl --context %s -n %s describe deployment %s\n"+
 				"  4. Verify Kind cluster is healthy: kind get clusters && kubectl --context %s get nodes\n\n"+
 				"Common causes:\n"+
 				"  - Image pull issues (check network connectivity)\n"+
@@ -599,8 +622,8 @@ func TestKindCluster_CAPIControllerReady(t *testing.T) {
 				"  - cert-manager not ready (controllers depend on it for webhooks)",
 				elapsed.Round(time.Second),
 				context, config.CAPINamespace,
-				context, config.CAPINamespace,
-				context, config.CAPINamespace,
+				context, config.CAPINamespace, CAPIPodSelector,
+				context, config.CAPINamespace, CAPIControllerDeployment,
 				context)
 			return
 		}
@@ -610,7 +633,7 @@ func TestKindCluster_CAPIControllerReady(t *testing.T) {
 		PrintToTTY("[%d] Checking deployment status...\n", iteration)
 
 		output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.CAPINamespace,
-			"get", "deployment", "capi-controller-manager",
+			"get", "deployment", CAPIControllerDeployment,
 			"-o", "jsonpath={.status.conditions[?(@.type=='Available')].status}")
 
 		if err != nil {
@@ -647,11 +670,9 @@ func TestKindCluster_CAPIControllerReady(t *testing.T) {
 	}
 }
 
-// TestKindCluster_CAPZControllerReady waits for CAPZ controller to be ready
-func TestKindCluster_CAPZControllerReady(t *testing.T) {
-	PrintTestHeader(t, "TestKindCluster_CAPZControllerReady",
-		"Wait for CAPZ controller manager deployment to become available (timeout: 10m)")
-
+// TestKindCluster_InfraControllersReady waits for all infrastructure provider controllers to be ready.
+// This iterates over all configured providers and validates each controller deployment.
+func TestKindCluster_InfraControllersReady(t *testing.T) {
 	config := NewTestConfig()
 
 	// Set KUBECONFIG for external cluster mode
@@ -661,82 +682,82 @@ func TestKindCluster_CAPZControllerReady(t *testing.T) {
 
 	context := config.GetKubeContext()
 
-	timeout := 10 * time.Minute
-	pollInterval := 10 * time.Second
-	startTime := time.Now()
+	for _, provider := range config.InfraProviders {
+		for _, ctrl := range provider.Controllers {
+			t.Run(ctrl.DisplayName, func(t *testing.T) {
+				timeout := ctrl.Timeout
+				if timeout == 0 {
+					timeout = DefaultControllerTimeout
+				}
+				pollInterval := 10 * time.Second
+				startTime := time.Now()
 
-	PrintToTTY("\n=== Waiting for CAPZ controller manager ===\n")
-	PrintToTTY("Namespace: %s\n", config.CAPZNamespace)
-	PrintToTTY("Deployment: capz-controller-manager\n")
-	PrintToTTY("Timeout: %v | Poll interval: %v\n\n", timeout, pollInterval)
+				PrintToTTY("\n=== Waiting for %s controller manager ===\n", ctrl.DisplayName)
+				PrintToTTY("Namespace: %s\n", ctrl.Namespace)
+				PrintToTTY("Deployment: %s\n", ctrl.DeploymentName)
+				PrintToTTY("Timeout: %v | Poll interval: %v\n\n", timeout, pollInterval)
 
-	iteration := 0
-	for {
-		elapsed := time.Since(startTime)
-		remaining := timeout - elapsed
+				iteration := 0
+				for {
+					elapsed := time.Since(startTime)
+					remaining := timeout - elapsed
 
-		if elapsed > timeout {
-			PrintToTTY("\n❌ Timeout reached after %v\n\n", elapsed.Round(time.Second))
-			t.Errorf("Timeout waiting for CAPZ controller manager to be available after %v.\n\n"+
-				"Troubleshooting steps:\n"+
-				"  1. Check pod status: kubectl --context %s -n %s get pods\n"+
-				"  2. Check pod logs: kubectl --context %s -n %s logs -l cluster.x-k8s.io/provider=infrastructure-azure --tail=50\n"+
-				"  3. Check pod events: kubectl --context %s -n %s describe deployment capz-controller-manager\n"+
-				"  4. Verify CAPI is ready first: kubectl --context %s -n %s get deployment capi-controller-manager\n\n"+
-				"Common causes:\n"+
-				"  - CAPI controller not ready yet (CAPZ depends on CAPI)\n"+
-				"  - Azure credentials not configured in aso-controller-settings secret\n"+
-				"  - Image pull issues (check network connectivity)",
-				elapsed.Round(time.Second),
-				context, config.CAPZNamespace,
-				context, config.CAPZNamespace,
-				context, config.CAPZNamespace,
-				context, config.CAPINamespace)
-			return
+					if elapsed > timeout {
+						PrintToTTY("\n❌ Timeout reached after %v\n\n", elapsed.Round(time.Second))
+						t.Errorf("Timeout waiting for %s controller manager to be available after %v.\n\n"+
+							"Troubleshooting steps:\n"+
+							"  1. Check pod status: kubectl --context %s -n %s get pods\n"+
+							"  2. Check pod logs: kubectl --context %s -n %s logs -l %s --tail=50\n"+
+							"  3. Check pod events: kubectl --context %s -n %s describe deployment %s\n"+
+							"  4. Verify CAPI is ready first: kubectl --context %s -n %s get deployment %s\n\n"+
+							"Common causes:\n"+
+							"  - CAPI controller not ready yet (infrastructure providers depend on CAPI)\n"+
+							"  - Credentials not configured\n"+
+							"  - Image pull issues (check network connectivity)",
+							ctrl.DisplayName, elapsed.Round(time.Second),
+							context, ctrl.Namespace,
+							context, ctrl.Namespace, ctrl.PodSelector,
+							context, ctrl.Namespace, ctrl.DeploymentName,
+							context, config.CAPINamespace, CAPIControllerDeployment)
+						return
+					}
+
+					iteration++
+
+					PrintToTTY("[%d] Checking deployment status...\n", iteration)
+
+					output, err := RunCommand(t, "kubectl", "--context", context, "-n", ctrl.Namespace,
+						"get", "deployment", ctrl.DeploymentName,
+						"-o", "jsonpath={.status.conditions[?(@.type=='Available')].status}")
+
+					if err != nil {
+						PrintToTTY("[%d] ⚠️  Status check failed: %v\n", iteration, err)
+					} else {
+						status := strings.TrimSpace(output)
+						PrintToTTY("[%d] 📊 Deployment Available status: %s\n", iteration, status)
+
+						if status == "True" {
+							PrintToTTY("\n✅ %s controller manager is available! (took %v)\n\n", ctrl.DisplayName, elapsed.Round(time.Second))
+							t.Logf("%s controller manager deployment is available", ctrl.DisplayName)
+							return
+						}
+					}
+
+					ReportProgress(t, iteration, elapsed, remaining, timeout)
+
+					time.Sleep(pollInterval)
+				}
+			})
 		}
-
-		iteration++
-
-		PrintToTTY("[%d] Checking deployment status...\n", iteration)
-
-		output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.CAPZNamespace,
-			"get", "deployment", "capz-controller-manager",
-			"-o", "jsonpath={.status.conditions[?(@.type=='Available')].status}")
-
-		if err != nil {
-			PrintToTTY("[%d] ⚠️  Status check failed: %v\n", iteration, err)
-		} else {
-			status := strings.TrimSpace(output)
-			PrintToTTY("[%d] 📊 Deployment Available status: %s\n", iteration, status)
-
-			if status == "True" {
-				PrintToTTY("\n✅ CAPZ controller manager is available! (took %v)\n\n", elapsed.Round(time.Second))
-				t.Log("CAPZ controller manager deployment is available")
-				return
-			}
-		}
-
-		ReportProgress(t, iteration, elapsed, remaining, timeout)
-
-		time.Sleep(pollInterval)
 	}
 }
 
-// TestKindCluster_ASOCredentialsConfigured validates that the ASO controller has Azure credentials configured.
-// This test runs BEFORE waiting for ASO to become available, providing fast failure and clear error messages
-// if credentials are missing (instead of waiting 10 minutes for timeout).
+// TestKindCluster_ProviderCredentialsConfigured validates that provider credential secrets
+// are properly configured. Iterates over all providers that define a credential secret.
 //
-// The test validates:
-// - AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID are always required
-// - AZURE_CLIENT_ID and AZURE_CLIENT_SECRET are required for ASO to function in Kind clusters
-//
-// Behavior:
-// - If service principal credentials are not set in the environment, the test skips gracefully
-// - In CI where credentials should be configured, missing credentials will cause test failure
-func TestKindCluster_ASOCredentialsConfigured(t *testing.T) {
-	PrintTestHeader(t, "TestKindCluster_ASOCredentialsConfigured",
-		"Validate Azure credentials are configured in aso-controller-settings secret")
-
+// This test runs BEFORE waiting for controllers to become available, providing fast failure
+// and clear error messages if credentials are missing.
+func TestKindCluster_ProviderCredentialsConfigured(t *testing.T) {
 	config := NewTestConfig()
 
 	// Set KUBECONFIG for external cluster mode
@@ -746,157 +767,79 @@ func TestKindCluster_ASOCredentialsConfigured(t *testing.T) {
 
 	context := config.GetKubeContext()
 
-	// Check if service principal credentials are available in the environment
-	// If not, skip the test gracefully since ASO won't work without them anyway
-	clientID := os.Getenv("AZURE_CLIENT_ID")
-	clientSecret := os.Getenv("AZURE_CLIENT_SECRET")
-	if clientID == "" || clientSecret == "" {
-		PrintToTTY("⚠️  Service principal credentials not found in environment\n")
-		PrintToTTY("   AZURE_CLIENT_ID and AZURE_CLIENT_SECRET are required for ASO in Kind clusters\n")
-		PrintToTTY("   Skipping test - ASO will not be functional without service principal\n\n")
-		PrintToTTY("To configure service principal credentials:\n")
-		PrintToTTY("  az ad sp create-for-rbac --name \"aro-capz-tests\" --role contributor \\\n")
-		PrintToTTY("    --scopes /subscriptions/$(az account show --query id -o tsv)\n\n")
-		t.Skip("Skipped: Service principal credentials (AZURE_CLIENT_ID/SECRET) not set in environment")
-	}
-
-	PrintToTTY("\n=== Validating ASO credentials configuration ===\n")
-	PrintToTTY("Namespace: %s\n", config.CAPZNamespace)
-	PrintToTTY("Secret: aso-controller-settings\n\n")
-
-	// Check if secret exists
-	PrintToTTY("Checking if aso-controller-settings secret exists...\n")
-	_, err := RunCommandQuiet(t, "kubectl", "--context", context, "-n", config.CAPZNamespace,
-		"get", "secret", "aso-controller-settings")
-	if err != nil {
-		PrintToTTY("❌ Secret 'aso-controller-settings' not found in %s namespace\n", config.CAPZNamespace)
-		PrintToTTY("\nThe deployment script did not create the ASO credentials secret.\n")
-		PrintToTTY("Please check that the cluster-api-installer deployment completed successfully.\n\n")
-		t.Fatalf("aso-controller-settings secret not found: %v", err)
-		return
-	}
-	PrintToTTY("✅ Secret exists\n\n")
-
-	// Required credential fields to validate
-	requiredFields := []string{
-		"AZURE_TENANT_ID",
-		"AZURE_SUBSCRIPTION_ID",
-		"AZURE_CLIENT_ID",
-		"AZURE_CLIENT_SECRET",
-	}
-
-	PrintToTTY("Checking credential fields in secret...\n")
-	var missingFields []string
-
-	for _, field := range requiredFields {
-		output, err := RunCommandQuiet(t, "kubectl", "--context", context, "-n", config.CAPZNamespace,
-			"get", "secret", "aso-controller-settings",
-			"-o", fmt.Sprintf("jsonpath={.data.%s}", field))
-
-		if err != nil || strings.TrimSpace(output) == "" {
-			missingFields = append(missingFields, field)
-			PrintToTTY("  ❌ %s: MISSING or EMPTY\n", field)
-		} else {
-			PrintToTTY("  ✅ %s: configured\n", field)
+	// Check if any provider has credential secrets to validate
+	hasCredentials := false
+	for _, p := range config.InfraProviders {
+		if p.CredentialSecret != nil {
+			hasCredentials = true
+			break
 		}
 	}
-
-	// Report results
-	if len(missingFields) > 0 {
-		PrintToTTY("\n❌ ASO credentials validation FAILED\n")
-		PrintToTTY("Missing fields: %v\n\n", missingFields)
-		PrintToTTY("The aso-controller-settings secret is missing required credentials.\n")
-		PrintToTTY("This can happen if:\n")
-		PrintToTTY("  1. The cluster was deployed without service principal credentials\n")
-		PrintToTTY("  2. PatchASOCredentialsSecret() was not called after deployment\n\n")
-		PrintToTTY("To fix, ensure these environment variables are set before deployment:\n")
-		PrintToTTY("  export AZURE_CLIENT_ID=<your-client-id>\n")
-		PrintToTTY("  export AZURE_CLIENT_SECRET=<your-client-secret>\n")
-		PrintToTTY("  export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)\n")
-		PrintToTTY("  export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)\n\n")
-		t.Fatalf("ASO credentials not configured: missing %v", missingFields)
-		return
+	if !hasCredentials {
+		t.Skip("No provider credential secrets to validate")
 	}
 
-	PrintToTTY("\n✅ ASO credentials validation PASSED\n\n")
-	t.Log("ASO credentials are properly configured")
-}
+	PrintTestHeader(t, "TestKindCluster_ProviderCredentialsConfigured",
+		"Validate provider credential secrets are configured")
 
-// TestKindCluster_ASOControllerReady waits for Azure Service Operator controller to be ready.
-// The timeout is configurable via the ASO_CONTROLLER_TIMEOUT environment variable (default: 10m).
-// ASO may require a longer timeout due to its CRD initialization sequence which can involve
-// multiple pod restarts.
-func TestKindCluster_ASOControllerReady(t *testing.T) {
-	config := NewTestConfig()
-
-	// Set KUBECONFIG for external cluster mode
-	if config.IsExternalCluster() {
-		SetEnvVar(t, "KUBECONFIG", config.UseKubeconfig)
-	}
-
-	PrintTestHeader(t, "TestKindCluster_ASOControllerReady",
-		fmt.Sprintf("Wait for Azure Service Operator controller manager to become available (timeout: %v)", config.ASOControllerTimeout))
-
-	context := config.GetKubeContext()
-
-	timeout := config.ASOControllerTimeout
-	pollInterval := 10 * time.Second
-	startTime := time.Now()
-
-	PrintToTTY("\n=== Waiting for Azure Service Operator controller manager ===\n")
-	PrintToTTY("Namespace: %s\n", config.CAPZNamespace)
-	PrintToTTY("Deployment: azureserviceoperator-controller-manager\n")
-	PrintToTTY("Timeout: %v | Poll interval: %v\n\n", timeout, pollInterval)
-
-	iteration := 0
-	for {
-		elapsed := time.Since(startTime)
-		remaining := timeout - elapsed
-
-		if elapsed > timeout {
-			PrintToTTY("\n❌ Timeout reached after %v\n\n", elapsed.Round(time.Second))
-			t.Errorf("Timeout waiting for Azure Service Operator controller manager to be available after %v.\n\n"+
-				"Troubleshooting steps:\n"+
-				"  1. Check ASO pod status: kubectl --context %s -n %s get pods -l app.kubernetes.io/name=azure-service-operator\n"+
-				"  2. Check ASO pod logs: kubectl --context %s -n %s logs -l app.kubernetes.io/name=azure-service-operator --tail=100\n"+
-				"  3. Check ASO credentials: kubectl --context %s -n %s get secret aso-controller-settings -o yaml\n"+
-				"  4. Verify ASO CRDs installed: kubectl get crds | grep azure.com\n\n"+
-				"Common causes:\n"+
-				"  - Missing or invalid Azure credentials in aso-controller-settings secret\n"+
-				"  - ASO pod in CrashLoopBackOff due to authentication failures\n"+
-				"  - CRD initialization taking longer than expected (ASO has many CRDs)\n\n"+
-				"To increase timeout: export ASO_CONTROLLER_TIMEOUT=15m",
-				elapsed.Round(time.Second),
-				context, config.CAPZNamespace,
-				context, config.CAPZNamespace,
-				context, config.CAPZNamespace)
-			return
+	for _, provider := range config.InfraProviders {
+		if provider.CredentialSecret == nil {
+			continue
 		}
 
-		iteration++
+		cred := provider.CredentialSecret
 
-		PrintToTTY("[%d] Checking deployment status...\n", iteration)
+		t.Run(provider.Name, func(t *testing.T) {
+			// Skip if required environment variables are not set
+			for _, envVar := range cred.RequiredEnvVars {
+				if os.Getenv(envVar) == "" {
+					t.Skipf("Skipped: required env var %s not set", envVar)
+				}
+			}
 
-		output, err := RunCommand(t, "kubectl", "--context", context, "-n", config.CAPZNamespace,
-			"get", "deployment", "azureserviceoperator-controller-manager",
-			"-o", "jsonpath={.status.conditions[?(@.type=='Available')].status}")
+			PrintToTTY("\n=== Validating %s credentials configuration ===\n", provider.Name)
+			PrintToTTY("Namespace: %s\n", cred.Namespace)
+			PrintToTTY("Secret: %s\n\n", cred.Name)
 
-		if err != nil {
-			PrintToTTY("[%d] ⚠️  Status check failed: %v\n", iteration, err)
-		} else {
-			status := strings.TrimSpace(output)
-			PrintToTTY("[%d] 📊 Deployment Available status: %s\n", iteration, status)
-
-			if status == "True" {
-				PrintToTTY("\n✅ Azure Service Operator controller manager is available! (took %v)\n\n", elapsed.Round(time.Second))
-				t.Log("Azure Service Operator controller manager deployment is available")
+			// Check if secret exists
+			PrintToTTY("Checking if %s secret exists...\n", cred.Name)
+			_, err := RunCommandQuiet(t, "kubectl", "--context", context, "-n", cred.Namespace,
+				"get", "secret", cred.Name)
+			if err != nil {
+				PrintToTTY("❌ Secret '%s' not found in %s namespace\n", cred.Name, cred.Namespace)
+				PrintToTTY("\nThe deployment script did not create the credentials secret.\n")
+				PrintToTTY("Please check that the deployment completed successfully.\n\n")
+				t.Fatalf("%s secret not found: %v", cred.Name, err)
 				return
 			}
-		}
+			PrintToTTY("✅ Secret exists\n\n")
 
-		ReportProgress(t, iteration, elapsed, remaining, timeout)
+			PrintToTTY("Checking credential fields in secret...\n")
+			var missingFields []string
 
-		time.Sleep(pollInterval)
+			for _, field := range cred.RequiredFields {
+				output, err := RunCommandQuiet(t, "kubectl", "--context", context, "-n", cred.Namespace,
+					"get", "secret", cred.Name,
+					"-o", fmt.Sprintf("jsonpath={.data.%s}", field))
+
+				if err != nil || strings.TrimSpace(output) == "" {
+					missingFields = append(missingFields, field)
+					PrintToTTY("  ❌ %s: MISSING or EMPTY\n", field)
+				} else {
+					PrintToTTY("  ✅ %s: configured\n", field)
+				}
+			}
+
+			if len(missingFields) > 0 {
+				PrintToTTY("\n❌ %s credentials validation FAILED\n", provider.Name)
+				PrintToTTY("Missing fields: %v\n\n", missingFields)
+				t.Fatalf("%s credentials not configured: missing %v", provider.Name, missingFields)
+				return
+			}
+
+			PrintToTTY("\n✅ %s credentials validation PASSED\n\n", provider.Name)
+			t.Logf("%s credentials are properly configured", provider.Name)
+		})
 	}
 }
 
@@ -914,23 +857,17 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 
 	context := config.GetKubeContext()
 
-	// Define webhooks to check
-	type webhookInfo struct {
-		name      string
-		namespace string
-		service   string
-		port      int
-	}
-
-	webhooks := []webhookInfo{
-		{"CAPI", config.CAPINamespace, "capi-webhook-service", 443},
-		{"CAPZ", config.CAPZNamespace, "capz-webhook-service", 443},
-		{"ASO", config.CAPZNamespace, "azureserviceoperator-webhook-service", 443},
-	}
+	// Build webhook list from CAPI core + all providers
+	webhooks := config.AllWebhooks()
 
 	// MCE webhook is only available in full MCE deployment, not in Kind/K8S mode
 	if os.Getenv("USE_KIND") != "true" && os.Getenv("USE_K8S") != "true" {
-		webhooks = append(webhooks, webhookInfo{"MCE", config.CAPINamespace, "mce-capi-webhook-config-service", 9443})
+		webhooks = append(webhooks, WebhookDef{
+			DisplayName: "MCE",
+			Namespace:   config.CAPINamespace,
+			ServiceName: "mce-capi-webhook-config-service",
+			Port:        9443,
+		})
 	}
 
 	timeout := 5 * time.Minute
@@ -944,15 +881,15 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 		startTime := time.Now()
 		iteration := 0
 
-		PrintToTTY("\n--- Checking %s webhook ---\n", wh.name)
-		PrintToTTY("Service: %s.%s.svc:%d\n", wh.service, wh.namespace, wh.port)
+		PrintToTTY("\n--- Checking %s webhook ---\n", wh.DisplayName)
+		PrintToTTY("Service: %s.%s.svc:%d\n", wh.ServiceName, wh.Namespace, wh.Port)
 
 		for {
 			elapsed := time.Since(startTime)
 			remaining := timeout - elapsed
 
 			if elapsed > timeout {
-				PrintToTTY("\n❌ Timeout waiting for %s webhook after %v\n", wh.name, elapsed.Round(time.Second))
+				PrintToTTY("\n❌ Timeout waiting for %s webhook after %v\n", wh.DisplayName, elapsed.Round(time.Second))
 				t.Errorf("Timeout waiting for %s webhook to be responsive after %v.\n\n"+
 					"Troubleshooting steps:\n"+
 					"  1. Check webhook service exists: kubectl --context %s -n %s get svc %s\n"+
@@ -963,10 +900,10 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 					"  - Controller manager pod not running or crashing\n"+
 					"  - cert-manager hasn't issued webhook certificate yet\n"+
 					"  - Service selector doesn't match pod labels",
-					wh.name, elapsed.Round(time.Second),
-					context, wh.namespace, wh.service,
-					context, wh.namespace, wh.service,
-					context, wh.namespace,
+					wh.DisplayName, elapsed.Round(time.Second),
+					context, wh.Namespace, wh.ServiceName,
+					context, wh.Namespace, wh.ServiceName,
+					context, wh.Namespace,
 					context)
 				break
 			}
@@ -975,21 +912,21 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 
 			// First check if endpoint exists and has addresses
 			endpointOutput, err := RunCommandQuiet(t, "kubectl", "--context", context,
-				"get", "endpoints", wh.service, "-n", wh.namespace,
+				"get", "endpoints", wh.ServiceName, "-n", wh.Namespace,
 				"-o", "jsonpath={.subsets[0].addresses[0].ip}")
 
 			if err != nil || strings.TrimSpace(endpointOutput) == "" {
-				PrintToTTY("[%d] ⏳ Waiting for %s endpoint to have addresses...\n", iteration, wh.name)
+				PrintToTTY("[%d] ⏳ Waiting for %s endpoint to have addresses...\n", iteration, wh.DisplayName)
 				time.Sleep(pollInterval)
 				continue
 			}
 
-			PrintToTTY("[%d] 📊 %s endpoint IP: %s\n", iteration, wh.name, strings.TrimSpace(endpointOutput))
+			PrintToTTY("[%d] 📊 %s endpoint IP: %s\n", iteration, wh.DisplayName, strings.TrimSpace(endpointOutput))
 
 			// Test actual HTTPS connectivity using a temporary pod
 			// We use --rm and --restart=Never to create an ephemeral pod that cleans up after itself
 			// The curl command tests if the webhook server is accepting HTTPS connections
-			curlURL := fmt.Sprintf("https://%s.%s.svc:%d/", wh.service, wh.namespace, wh.port)
+			curlURL := fmt.Sprintf("https://%s.%s.svc:%d/", wh.ServiceName, wh.Namespace, wh.Port)
 
 			// Use a unique pod name to avoid conflicts
 			podName := fmt.Sprintf("webhook-test-%d", time.Now().UnixNano())
@@ -1006,13 +943,13 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 				// 000 means connection failed
 				if httpCode != "" && httpCode != "000" {
 					PrintToTTY("[%d] ✅ %s webhook is responsive (HTTP %s) - took %v\n",
-						iteration, wh.name, httpCode, elapsed.Round(time.Second))
-					t.Logf("%s webhook is responsive (HTTP %s)", wh.name, httpCode)
+						iteration, wh.DisplayName, httpCode, elapsed.Round(time.Second))
+					t.Logf("%s webhook is responsive (HTTP %s)", wh.DisplayName, httpCode)
 					break
 				}
 			}
 
-			PrintToTTY("[%d] ⏳ %s webhook not ready yet (connection failed), retrying...\n", iteration, wh.name)
+			PrintToTTY("[%d] ⏳ %s webhook not ready yet (connection failed), retrying...\n", iteration, wh.DisplayName)
 			ReportProgress(t, iteration, elapsed, remaining, timeout)
 			time.Sleep(pollInterval)
 		}

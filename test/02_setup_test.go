@@ -70,11 +70,8 @@ func TestSetup_VerifyRepositoryStructure(t *testing.T) {
 		t.Skipf("Repository not cloned yet at %s", config.RepoDir)
 	}
 
-	// Check for scripts actually used by tests
-	requiredScripts := []string{
-		"scripts/deploy-charts-kind-capz.sh", // Used by TestKindCluster_Deploy (03_cluster_test.go)
-		"doc/aro-hcp-scripts/aro-hcp-gen.sh", // Used by TestInfrastructure_GenerateResources (04_generate_yamls_test.go)
-	}
+	// Check for scripts actually used by tests (derived from provider configuration)
+	requiredScripts := config.AllRequiredScripts()
 
 	for _, requiredScript := range requiredScripts {
 		fullPath := filepath.Join(config.RepoDir, requiredScript)
@@ -96,10 +93,7 @@ func TestSetup_ScriptPermissions(t *testing.T) {
 		t.Skipf("Repository not cloned yet at %s", config.RepoDir)
 	}
 
-	scripts := []string{
-		"scripts/deploy-charts-kind-capz.sh",
-		"doc/aro-hcp-scripts/aro-hcp-gen.sh",
-	}
+	scripts := config.AllRequiredScripts()
 
 	for _, script := range scripts {
 		scriptPath := filepath.Join(config.RepoDir, script)
