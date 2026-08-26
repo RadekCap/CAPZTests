@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -132,6 +133,8 @@ func TestVerification_RetrieveKubeconfig(t *testing.T) {
 			t.Errorf("Decoded kubeconfig is empty")
 			return
 		}
+
+		decoded = rewriteKindInternalServer(t, decoded)
 
 		if err := os.WriteFile(kubeconfigPath, decoded, 0600); err != nil {
 			t.Errorf("Failed to write kubeconfig to file: %v", err)
@@ -454,4 +457,40 @@ func TestVerification_ControllerLogSummary(t *testing.T) {
 	}
 
 	t.Logf("Controller logs saved to: %s", resultsDir)
+}
+
+// rewriteKindInternalServer detects Docker-internal Kind server addresses in a kubeconfig
+// and replaces them with host-accessible addresses. Kind containers use DNS names like
+// "cluster-name-control-plane:6443" which are only resolvable inside the Docker network.
+// When tests run on the host, they need "127.0.0.1:<port>" instead.
+func rewriteKindInternalServer(t *testing.T, kubeconfig []byte) []byte {
+	if os.Getenv("ARO_NULL_PROVISIONING") != "true" {
+		return kubeconfig
+	}
+
+	re := regexp.MustCompile(`https://([a-zA-Z0-9_-]+)-control-plane:6443`)
+	match := re.FindStringSubmatch(string(kubeconfig))
+	if match == nil {
+		return kubeconfig
+	}
+
+	kindClusterName := match[1]
+	t.Logf("Detected Kind-internal server address for cluster %q, rewriting for host access", kindClusterName)
+
+	hostKubeconfig, err := RunCommandQuiet(t, "kind", "get", "kubeconfig", "--name", kindClusterName)
+	if err != nil {
+		t.Logf("Warning: could not get Kind kubeconfig for %q: %v (keeping Docker-internal address)", kindClusterName, err)
+		return kubeconfig
+	}
+
+	hostRe := regexp.MustCompile(`https://127\.0\.0\.1:\d+`)
+	hostMatch := hostRe.FindString(hostKubeconfig)
+	if hostMatch == "" {
+		t.Logf("Warning: could not find host server address in Kind kubeconfig for %q", kindClusterName)
+		return kubeconfig
+	}
+
+	result := re.ReplaceAllString(string(kubeconfig), hostMatch)
+	t.Logf("Rewrote kubeconfig server: %s -> %s", match[0], hostMatch)
+	return []byte(result)
 }
