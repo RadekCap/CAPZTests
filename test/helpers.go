@@ -4832,49 +4832,10 @@ func SetMCEComponentState(t *testing.T, kubeContext, componentName string, enabl
 	return nil
 }
 
-// EnableMCEComponent enables a specific MCE component by patching the multiclusterengine resource.
-// This uses jq to transform the components array while preserving other settings.
+// EnableMCEComponent enables a specific MCE component.
 func EnableMCEComponent(t *testing.T, kubeContext, componentName string) error {
 	t.Helper()
-
-	PrintToTTY("Enabling MCE component: %s\n", componentName)
-	t.Logf("Enabling MCE component: %s", componentName)
-
-	// Get current MCE resource as JSON
-	currentOutput, err := RunCommandQuiet(t, "kubectl", "--context", kubeContext,
-		"get", "mce", "multiclusterengine", "-o", "json")
-	if err != nil {
-		return fmt.Errorf("failed to get MCE resource: %w", err)
-	}
-
-	// Build the jq expression to update the specific component
-	jqExpr := fmt.Sprintf(
-		`.spec.overrides.components | map(if .name == "%s" then .enabled = true else . end)`,
-		componentName)
-
-	// Use jq to transform the components array
-	// #nosec G204 - jq binary with expression built from validated MCE component name, not user input
-	jqCmd := exec.Command("jq", "-c", jqExpr)
-	jqCmd.Stdin = strings.NewReader(currentOutput)
-	transformedBytes, err := jqCmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to transform MCE components with jq: %w", err)
-	}
-	transformed := strings.TrimSpace(string(transformedBytes))
-
-	// Build the patch JSON
-	patchJSON := fmt.Sprintf(`{"spec":{"overrides":{"components":%s}}}`, transformed)
-
-	// Apply the patch
-	output, err := RunCommand(t, "kubectl", "--context", kubeContext,
-		"patch", "mce", "multiclusterengine", "--type=merge", "-p", patchJSON)
-	if err != nil {
-		return fmt.Errorf("failed to patch MCE resource: %w\nOutput: %s", err, output)
-	}
-
-	PrintToTTY("✅ MCE component %s enabled successfully\n", componentName)
-	t.Logf("MCE component %s enabled successfully", componentName)
-	return nil
+	return SetMCEComponentState(t, kubeContext, componentName, true)
 }
 
 // WaitForMCEController waits for a controller deployment to become available after MCE enablement.
