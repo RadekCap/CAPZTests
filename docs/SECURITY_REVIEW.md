@@ -49,26 +49,27 @@ func ExtractCurrentContext(kubeconfigPath string) string {
 
 **Risk assessment**: Low. The path comes from an environment variable set by the test operator (who already has full shell access). There is no privilege escalation vector.
 
-#### 2. os.Setenv Side Effect in NewTestConfig()
+#### 2. Derived K8S Mode in NewTestConfig()
 
-**Status**: PASSED (acceptable trade-off)
+**Status**: PASSED
 
-**Location**: `test/config.go:164`
+**Location**: `test/config.go:645-652`
 
-**Analysis**: When `USE_KUBECONFIG` is set and `USE_K8S` is not, `NewTestConfig()` sets `USE_K8S=true` to default controller namespaces to `multicluster-engine`:
+**Analysis**: When `USE_KUBECONFIG` is set, `DEPLOY_CHARTS=false`, and `USE_K8S` is not set, `NewTestConfig()` derives `UseK8S=true` to default controller namespaces to `multicluster-engine`:
 
 ```go
-if useKubeconfig != "" && os.Getenv("USE_K8S") == "" {
-    _ = os.Setenv("USE_K8S", "true")
+useK8S := os.Getenv("USE_K8S") == "true"
+if useKubeconfig != "" && !deployCharts && os.Getenv("USE_K8S") == "" {
+    useK8S = true
 }
 ```
 
 **Security implications**:
-- Mutates global process state, which could affect other code reading `USE_K8S`
-- The `#nosec G104` suppression for the ignored error return is justified: `os.Setenv` with a fixed key and value cannot fail in any realistic scenario (it would only fail if the OS kernel rejected the syscall)
-- The side effect is documented in CLAUDE.md and the code comment
+- Does not mutate global process state, preventing constructor calls from affecting unrelated code reading `USE_K8S`
+- The derived state is stored on `TestConfig` and used by namespace resolution and readiness checks
+- An explicit `USE_K8S` value remains supported for backward compatibility
 
-**Risk assessment**: Low. This is a test framework configuration convenience, not a security boundary. The mutation is idempotent and deterministic.
+**Risk assessment**: Low. This is a test framework configuration convenience, not a security boundary, and it no longer changes the caller's environment.
 
 #### 3. SetMCEComponentState() / EnableMCEComponent() - jq Command Injection
 
@@ -170,19 +171,18 @@ if data, err := os.ReadFile(stateFilePath); err == nil {
 
 ### V1.1 #nosec Annotation Audit
 
-All 7 current `#nosec` annotations were reviewed and verified as justified:
+All 6 current `#nosec` annotations were reviewed and verified as justified:
 
 | # | Location | Rule | Justification | Verdict |
 |---|----------|------|---------------|---------|
 | 1 | `config.go:91` | G304 | Path from repo dir + fixed filename `.deployment-state.json` | Justified |
-| 2 | `config.go:164` | G104 | `os.Setenv("USE_K8S", "true")` cannot fail in practice | Justified |
-| 3 | `helpers.go:414` | G304 | `ExtractClusterNameFromYAML` - path from test config | Justified |
-| 4 | `helpers.go:1494` | G304 | `ValidateYAMLFile` - path validated via `os.Stat`, from test config | Justified |
-| 5 | `helpers.go:1517` | G304 | `ExtractNamespaceFromYAML` - path from test config | Justified |
-| 6 | `helpers.go:2795` | G204 | `SetMCEComponentState` - jq with compile-time constant component names | Justified |
-| 7 | `helpers.go:2844` | G204 | `EnableMCEComponent` - jq with compile-time constant component names | Justified |
+| 2 | `helpers.go:414` | G304 | `ExtractClusterNameFromYAML` - path from test config | Justified |
+| 3 | `helpers.go:1494` | G304 | `ValidateYAMLFile` - path validated via `os.Stat`, from test config | Justified |
+| 4 | `helpers.go:1517` | G304 | `ExtractNamespaceFromYAML` - path from test config | Justified |
+| 5 | `helpers.go:2795` | G204 | `SetMCEComponentState` - jq with compile-time constant component names | Justified |
+| 6 | `helpers.go:2844` | G204 | `EnableMCEComponent` - jq with compile-time constant component names | Justified |
 
-**Change from V1**: Annotations #1 and #2 are new in v1.1 (config.go). Annotation #5 (`ExtractNamespaceFromYAML`) is also new. The total increased from 5 to 7, all properly documented with inline justifications.
+**Change from V1**: Annotation #1 is new in v1.1 (config.go). Annotation #4 (`ExtractNamespaceFromYAML`) is also new. The total increased from 5 to 6, all properly documented with inline justifications.
 
 ### V1.1 Security Scan Results
 

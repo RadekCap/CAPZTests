@@ -66,8 +66,8 @@ This pattern appears in 50+ locations across test files.
 - User sets context before running: `kubectl config use-context <name>`
 
 **Namespace Configuration:**
-- External clusters use `multicluster-engine` namespace (MCE installation)
-- Leverages existing `USE_K8S=true` pattern for namespace resolution
+- External clusters use `multicluster-engine` namespace (MCE installation) when charts are not deployed
+- `TestConfig.UseK8S` derives this mode without modifying the `USE_K8S` environment variable
 
 ### Implementation Details
 
@@ -83,19 +83,24 @@ type TestConfig struct {
     // - Validates pre-installed controllers
     // - Uses current-context from the kubeconfig
     UseKubeconfig string
+
+    // UseK8S selects multicluster-engine namespaces for controller checks.
+    UseK8S bool
 }
 
 func NewTestConfig() *TestConfig {
     useKubeconfig := os.Getenv("USE_KUBECONFIG")
 
-    // When using external kubeconfig, default to MCE namespaces
-    if useKubeconfig != "" {
-        os.Setenv("USE_K8S", "true")  // Triggers multicluster-engine namespaces
+    // Derive MCE namespace selection without mutating the caller environment.
+    useK8S := os.Getenv("USE_K8S") == "true"
+    if useKubeconfig != "" && !deployCharts && os.Getenv("USE_K8S") == "" {
+        useK8S = true
     }
 
     return &TestConfig{
         // ...existing initialization...
         UseKubeconfig: useKubeconfig,
+        UseK8S: useK8S,
     }
 }
 
