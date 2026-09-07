@@ -117,7 +117,7 @@ This document provides a comprehensive review of all public interfaces. These co
 |----------|---------------|--------|-------|
 | `CAPI_NAMESPACE` | ✅ Approved | Good | Clear controller namespace override |
 | `CAPZ_NAMESPACE` | ✅ Approved | Good | Consistent with CAPI_NAMESPACE |
-| `USE_K8S` | ⚠️ Warning | Acceptable | Auto-set when `USE_KUBECONFIG` is provided; naming kept for backward compatibility |
+| `USE_K8S` | ⚠️ Warning | Acceptable | Explicitly enables MCE namespace selection; equivalent config state is derived when `USE_KUBECONFIG` is provided and charts are not deployed |
 | `ASO_CONTROLLER_TIMEOUT` | ✅ Approved | Good | Clear purpose, follows DEPLOYMENT_TIMEOUT pattern |
 
 ### Path Configuration Variables (Internal)
@@ -133,7 +133,7 @@ This document provides a comprehensive review of all public interfaces. These co
 
 1. **CS_CLUSTER_NAME**: ✅ Documented as **C**luster **S**ervice in CLAUDE.md (resolved in v1).
 
-2. **USE_K8S**: Now auto-set when `USE_KUBECONFIG` is provided. Naming kept for backward compatibility. Low priority to rename.
+2. **USE_K8S**: Naming is kept for backward compatibility. When `USE_KUBECONFIG` is provided and charts are not deployed, the equivalent state is derived in `TestConfig` without mutating the environment.
 
 3. **GEN_SCRIPT_PATH**: Abbreviation kept for backward compatibility. Low priority to rename.
 
@@ -388,7 +388,7 @@ Exit codes are consistent and follow Unix conventions.
 ### Deferred (Low Priority)
 
 6. **GEN_SCRIPT_PATH**: Abbreviation kept for backward compatibility
-7. **USE_K8S**: Naming kept for backward compatibility; now auto-set when `USE_KUBECONFIG` is provided
+7. **USE_K8S**: Naming kept for backward compatibility; the equivalent mode is derived in `TestConfig` when `USE_KUBECONFIG` is provided and charts are not deployed
 
 ---
 

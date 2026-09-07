@@ -389,7 +389,7 @@ export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
   - Skips repository cloning (Phase 02) when controllers are pre-installed
   - Validates pre-installed CAPI/CAPZ/ASO controllers
   - Uses the `current-context` from the specified kubeconfig file
-  - Automatically sets `USE_K8S=true` for MCE namespace defaults (`multicluster-engine`)
+  - Uses MCE namespace defaults (`multicluster-engine`) when charts are not deployed; this state is derived in `TestConfig` without modifying the process environment
 - `DEPLOY_CHARTS` - Deploy Helm charts to external cluster (default: `false`). When set to `true` with `USE_KUBECONFIG`:
   - Enables chart deployment to the external cluster (Phase 03)
   - Runs deploy-charts.sh with `DO_INIT_KIND=false` (skips Kind creation)

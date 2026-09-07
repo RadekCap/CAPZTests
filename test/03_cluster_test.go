@@ -752,7 +752,7 @@ func TestKindCluster_CAPIControllerReady(t *testing.T) {
 				t.Log("CAPI controller manager deployment is available")
 
 				// Also check mce-capi-webhook-config when not in Kind/K8S mode
-				if os.Getenv("USE_KIND") != "true" && os.Getenv("USE_K8S") != "true" {
+				if !config.UseKind && !config.UseK8S {
 					PrintToTTY("Checking mce-capi-webhook-config deployment...\n")
 					mceOutput, mceErr := RunCommand(t, "kubectl", "--context", context, "-n", config.CAPINamespace,
 						"get", "deployment", "mce-capi-webhook-config",
@@ -899,7 +899,7 @@ func TestKindCluster_WebhooksReady(t *testing.T) {
 	webhooks := config.AllWebhooks()
 
 	// MCE webhook is only available in full MCE deployment, not in Kind/K8S mode
-	if os.Getenv("USE_KIND") != "true" && os.Getenv("USE_K8S") != "true" {
+	if !config.UseKind && !config.UseK8S {
 		webhooks = append(webhooks, WebhookDef{
 			DisplayName: "MCE",
 			Namespace:   config.CAPINamespace,

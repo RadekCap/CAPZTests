@@ -486,8 +486,8 @@ type TestConfig struct {
 	TestRunID                string            // Unique run identifier extracted from ClusterNamePrefix (the part after CAPI_USER-). Empty when prefix does not start with CAPI_USER-.
 	ResourceTags             map[string]string // Tags applied to all created cloud resources (Azure RGs, AWS stacks/VPCs) for ownership tracking and cleanup
 	ResourceGroupName        string            // Azure resource group name (env: RESOURCEGROUPNAME, default: ${WorkloadClusterName}-${runID}-resgroup)
-	CAPINamespace            string            // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" when USE_K8S=true)
-	CAPZNamespace            string            // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" when USE_K8S=true)
+	CAPINamespace            string            // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" in K8S mode)
+	CAPZNamespace            string            // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" in K8S mode)
 
 	// Management cluster mode
 	// ClusterMode specifies the management cluster deployment mode ("kind" or "mce").
@@ -507,6 +507,11 @@ type TestConfig struct {
 	// UseKind enables Kind deployment mode (USE_KIND=true).
 	// When true, creates a local Kind management cluster with CAPI/CAPZ/ASO controllers.
 	UseKind bool
+
+	// UseK8S selects the multicluster-engine namespace for all controllers.
+	// It is enabled explicitly with USE_K8S=true or implicitly for an external
+	// kubeconfig when chart deployment is disabled.
+	UseK8S bool
 
 	// Paths
 	ClusterctlBinPath string
@@ -639,11 +644,12 @@ func NewTestConfig() *TestConfig {
 		}
 	}
 
-	// When using external kubeconfig WITHOUT deploying charts, default to MCE namespaces (USE_K8S=true)
-	// This triggers multicluster-engine namespace for all controllers.
-	// When DEPLOY_CHARTS=true, we're deploying to standard namespaces (capi-system, capz-system).
+	// An external kubeconfig without chart deployment uses the namespaces where
+	// MCE provides the controllers. Keep this derived state in the config rather
+	// than mutating USE_K8S in the caller's environment.
+	useK8S := os.Getenv("USE_K8S") == "true"
 	if useKubeconfig != "" && !deployCharts && os.Getenv("USE_K8S") == "" {
-		_ = os.Setenv("USE_K8S", "true") // #nosec G104 - os.Setenv with fixed key/value cannot fail in practice
+		useK8S = true
 	}
 
 	// Determine infrastructure provider
@@ -666,7 +672,7 @@ func NewTestConfig() *TestConfig {
 
 	switch infraProviderName {
 	case "rosa":
-		providerNamespace = getControllerNamespace("CAPA_NAMESPACE", "capa-system")
+		providerNamespace = getControllerNamespace(useK8S, "CAPA_NAMESPACE", "capa-system")
 		infraProviders = []InfraProvider{NewAWSProvider(providerNamespace)}
 		defaultGenScriptPath = "./scripts/rosa-hcp/gen.sh"
 		defaultMgmtCluster = "capa-tests-stage"
@@ -677,7 +683,7 @@ func NewTestConfig() *TestConfig {
 		defaultRegion = "us-east-1"
 	default: // "aro"
 		infraProviderName = "aro" // normalize unknown values
-		providerNamespace = getControllerNamespace("CAPZ_NAMESPACE", "capz-system")
+		providerNamespace = getControllerNamespace(useK8S, "CAPZ_NAMESPACE", "capz-system")
 		azureProvider := NewAzureProvider(providerNamespace)
 		for i := range azureProvider.Controllers {
 			if azureProvider.Controllers[i].DisplayName == "ASO" {
@@ -747,7 +753,7 @@ func NewTestConfig() *TestConfig {
 		TestRunID:                testRunID,
 		ResourceTags:             resourceTags,
 		ResourceGroupName:        rgName,
-		CAPINamespace:            getControllerNamespace("CAPI_NAMESPACE", "capi-system"),
+		CAPINamespace:            getControllerNamespace(useK8S, "CAPI_NAMESPACE", "capi-system"),
 		CAPZNamespace:            providerNamespace,
 
 		// Management cluster mode
@@ -758,6 +764,7 @@ func NewTestConfig() *TestConfig {
 
 		// Kind mode
 		UseKind: os.Getenv("USE_KIND") == "true",
+		UseK8S:  useK8S,
 
 		// Paths
 		ClusterctlBinPath: GetEnvOrDefault("CLUSTERCTL_BIN", "./bin/clusterctl"),
@@ -788,11 +795,11 @@ func NewTestConfig() *TestConfig {
 }
 
 // getControllerNamespace returns the namespace for a controller based on configuration.
-// If USE_K8S=true, returns "multicluster-engine" (K8S deployment mode).
+// If useK8S is true, returns "multicluster-engine" (K8S deployment mode).
 // Otherwise, checks the specific env var (e.g., CAPI_NAMESPACE) and falls back to defaultNS.
-func getControllerNamespace(envVar, defaultNS string) string {
-	// Check if USE_K8S mode is enabled - all controllers use multicluster-engine namespace
-	if os.Getenv("USE_K8S") == "true" {
+func getControllerNamespace(useK8S bool, envVar, defaultNS string) string {
+	// K8S mode uses the multicluster-engine namespace for all controllers.
+	if useK8S {
 		return "multicluster-engine"
 	}
 

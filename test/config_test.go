@@ -78,6 +78,38 @@ func TestGetDefaultRepoDir_PathFormat(t *testing.T) {
 	t.Logf("Path format validated: %s", config.RepoDir)
 }
 
+func TestNewTestConfig_ExternalKubeconfigUsesMCENamespacesWithoutMutatingUseK8S(t *testing.T) {
+	t.Setenv("USE_KUBECONFIG", "/tmp/external-kubeconfig")
+	t.Setenv("DEPLOY_CHARTS", "false")
+
+	originalUseK8S, useK8SWasSet := os.LookupEnv("USE_K8S")
+	if err := os.Unsetenv("USE_K8S"); err != nil {
+		t.Fatalf("Unsetenv(USE_K8S): %v", err)
+	}
+	t.Cleanup(func() {
+		if useK8SWasSet {
+			_ = os.Setenv("USE_K8S", originalUseK8S)
+			return
+		}
+		_ = os.Unsetenv("USE_K8S")
+	})
+
+	config := NewTestConfig()
+
+	if !config.UseK8S {
+		t.Error("UseK8S = false, want true for an external kubeconfig without chart deployment")
+	}
+	if config.CAPINamespace != "multicluster-engine" {
+		t.Errorf("CAPI namespace = %q, want multicluster-engine", config.CAPINamespace)
+	}
+	if config.CAPZNamespace != "multicluster-engine" {
+		t.Errorf("CAPZ namespace = %q, want multicluster-engine", config.CAPZNamespace)
+	}
+	if _, isSet := os.LookupEnv("USE_K8S"); isSet {
+		t.Error("NewTestConfig() set USE_K8S, want it to remain unset")
+	}
+}
+
 func TestParseDeploymentTimeout_Default(t *testing.T) {
 	// Ensure DEPLOYMENT_TIMEOUT is not set
 	originalValue := os.Getenv("DEPLOYMENT_TIMEOUT")
