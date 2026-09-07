@@ -327,7 +327,20 @@ NODES_ERROR=""
 if "${KUBECTL_CMD[@]}" get secret "$KUBECONFIG_SECRET" -n "$NAMESPACE" &>/dev/null; then
     # Try to get nodes, capturing both stdout and stderr
     # Note: Use plain 'kubectl' without context since we're using the workload cluster's kubeconfig via stdin
-    NODES_RESULT=$("${KUBECTL_CMD[@]}" get secret "$KUBECONFIG_SECRET" -n "$NAMESPACE" -o jsonpath='{.data.value}' 2>/dev/null | base64 -d | \
+    WORKLOAD_KUBECONFIG=$("${KUBECTL_CMD[@]}" get secret "$KUBECONFIG_SECRET" -n "$NAMESPACE" -o jsonpath='{.data.value}' 2>/dev/null | base64 -d)
+    # In null-provisioning mode the kubeconfig has Docker-internal DNS names
+    # (e.g. cluster-control-plane:6443) that are only resolvable inside the Kind
+    # network. Rewrite to the host-accessible 127.0.0.1:<port> via kind.
+    if [[ "${ARO_NULL_PROVISIONING:-}" == "true" ]]; then
+        KIND_CLUSTER=$(echo "$WORKLOAD_KUBECONFIG" | grep -oP '(?<=https://)[a-zA-Z0-9_-]+(?=-control-plane:6443)' || true)
+        if [[ -n "$KIND_CLUSTER" ]]; then
+            HOST_SERVER=$(kind get kubeconfig --name "$KIND_CLUSTER" 2>/dev/null | grep -oP 'https://127\.0\.0\.1:\d+' | head -1 || true)
+            if [[ -n "$HOST_SERVER" ]]; then
+                WORKLOAD_KUBECONFIG=$(echo "$WORKLOAD_KUBECONFIG" | sed "s|https://${KIND_CLUSTER}-control-plane:6443|${HOST_SERVER}|g")
+            fi
+        fi
+    fi
+    NODES_RESULT=$(echo "$WORKLOAD_KUBECONFIG" | \
         KUBECONFIG=/dev/stdin kubectl get nodes -o json 2>&1)
     NODES_EXIT_CODE=$?
 
