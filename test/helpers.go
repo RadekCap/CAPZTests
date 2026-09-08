@@ -1514,15 +1514,25 @@ func saveDiagnosticsToFile(t *testing.T, content string) {
 // when the API server is degraded (MonitorCluster has no built-in timeout).
 const diagnosticsDeadline = 2 * time.Minute
 
-// CollectAndDumpInfraDiagnostics collects infrastructure status via the monitor script
-// and dumps diagnostics for any not-ready resources. Call this on timeout in deployment
-// wait loops to capture why resources are stuck.
+// CollectAndDumpInfraDiagnostics collects controller logs and infrastructure status via
+// the monitor script, then dumps diagnostics for any not-ready resources. Call this on
+// timeout in deployment wait loops to capture why resources are stuck.
 //
 // The entire sweep runs under a hard deadline to prevent hanging when the API server
 // is unresponsive — MonitorCluster blocks on CombinedOutput() without a timeout,
 // and per-resource kubectl calls add 10s each.
 func CollectAndDumpInfraDiagnostics(t *testing.T, context, namespace, clusterName string) {
 	t.Helper()
+
+	// Deployment failures happen before TestVerification_ControllerLogSummary runs.
+	// Capture controller logs here so failed runs retain the management-cluster logs
+	// needed to diagnose CAPI, provider, and ASO reconciliation failures.
+	PrintToTTY("--- Controller logs (failure snapshot) ---\n")
+	summaries := GetAllControllerLogSummaries(t, context)
+	resultsDir := GetResultsDir()
+	summaries = SaveAllControllerLogs(t, context, resultsDir, summaries)
+	PrintToTTY("%s", FormatControllerLogSummaries(summaries))
+	t.Logf("Controller logs saved to %s", resultsDir)
 
 	done := make(chan struct{})
 	go func() {
