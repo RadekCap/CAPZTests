@@ -307,20 +307,6 @@ func TestInfrastructure_GenerateResources(t *testing.T) {
 			t.Logf("Deployment state saved (namespace: %s)", config.WorkloadClusterNamespace)
 		}
 
-		// Tag Azure resource group for parallel run cleanup queries.
-		// Resource group may not exist yet (created by CAPI during deployment),
-		// so failure here is expected — Phase 05 will retry after deployment.
-		if len(config.ResourceTags) > 0 && CommandExists("az") {
-			if err := EnsureAzureCliLogin(t); err != nil {
-				t.Logf("Resource group tagging deferred (Azure CLI auth unavailable, Phase 05 will retry): %v", err)
-			} else {
-				PrintToTTY("🏷️  Tagging resource group %s...\n", config.ResourceGroupName)
-				if err := TagAzureResourceGroup(t, config); err != nil {
-					t.Logf("Resource group tagging deferred (RG may not exist yet, Phase 05 will retry): %v", err)
-				}
-			}
-		}
-
 		// Copy generated YAMLs to results directory for visibility
 		copyYAMLsToResultsDir(t, outputDir, expectedFiles)
 	}

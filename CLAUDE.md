@@ -243,7 +243,7 @@ WORKLOAD_CLUSTER_NAME=my-cluster make clean-azure
 
 **Tag-Based Cleanup (for parallel runs)**:
 
-All test runs automatically tag Azure resource groups with ownership metadata (`capi-test-user`, `capi-test-env`, `capi-test-run-id`, `capi-test-created-at`). This enables tag-based resource discovery and cleanup:
+Provider scripts apply ownership metadata (`capi-test-user`, `capi-test-env`, `capi-test-run-id`, `capi-test-created-at`) used for tag-based resource discovery and cleanup. The CAPI tests do not add duplicate tags:
 
 ```bash
 # List all my test resources (dry-run, uses capi-test-user=$USER tag)

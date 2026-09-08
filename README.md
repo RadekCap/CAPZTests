@@ -123,7 +123,7 @@ When using `INFRA_PROVIDER=rosa`, the following credentials are required:
 - `OCP_VERSION_MP` - Full `x.y.z` OpenShift version for MachinePool workers (default: `4.20.17`)
 - `REGION` - Azure region (default: `uksouth`)
 - `AZURE_SUBSCRIPTION_NAME` - Azure subscription ID
-- `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`). Used in Azure resource tags and domain prefix validation.
+- `DEPLOYMENT_ENV` - Deployment environment identifier (default: `stage`). Used in domain prefix validation; provider scripts manage resource tags.
 - `CAPI_USER` - User identifier and base for auto-generated `CS_CLUSTER_NAME` (default: `cate`)
 - `WORKLOAD_CLUSTER_NAMESPACE` - Namespace for workload cluster resources. If set, uses the exact value provided (for resume scenarios). If not set, auto-generates a unique namespace per test run using `${WORKLOAD_CLUSTER_NAMESPACE_PREFIX}-${TIMESTAMP}` format.
 - `WORKLOAD_CLUSTER_NAMESPACE_PREFIX` - Prefix for auto-generated namespace (default: provider-specific — `capz-test` for ARO, `capa-test` for ROSA). Only used when `WORKLOAD_CLUSTER_NAMESPACE` is not set.
@@ -429,7 +429,7 @@ For automated workflows (CI/CD, scripts) or quick full resets, use:
 - Checks if resource group exists before attempting deletion
 - The resource group name is derived from `${WORKLOAD_CLUSTER_NAME}-resgroup` (e.g., `capz-tests-resgroup`)
 
-**Tag-Based Cleanup (for parallel runs)**: All test runs automatically tag Azure resources with ownership metadata. Use tag-based queries to find and clean up resources:
+**Tag-Based Cleanup (for parallel runs)**: Provider scripts apply the `capi-test-*` ownership tags used by these cleanup commands. The CAPI tests do not add duplicate tags:
 
 ```bash
 make clean-my-resources                                          # List all my test resources (dry-run)
@@ -444,7 +444,7 @@ Multiple users (or CI jobs) can run the test suite simultaneously against the sa
 **How it works**:
 - `CS_CLUSTER_NAME` is auto-generated as `${CAPI_USER}-${random5hex}` (e.g., `cate-a1b2c`)
 - Each run creates its own Azure resource group (e.g., `capz-tests-resgroup`)
-- All Azure resources are tagged with `capi-test-user`, `capi-test-env`, `capi-test-run-id`, and `capi-test-created-at`
+- Provider scripts tag resources with `capi-test-user`, `capi-test-env`, `capi-test-run-id`, and `capi-test-created-at`
 - The deployment state file (`.deployment-state.json`) tracks the generated prefix for cleanup
 
 **Recommended setup for each user**:

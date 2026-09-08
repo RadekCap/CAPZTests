@@ -259,11 +259,6 @@ var (
 
 	resourceGroupName     string
 	resourceGroupNameOnce sync.Once
-
-	// cachedResourceTags holds tags loaded from the deployment state file on resume.
-	// nil means tags were not loaded from state (fresh run or explicit CS_CLUSTER_NAME),
-	// so fresh tags will be generated.
-	cachedResourceTags map[string]string
 )
 
 // getDefaultRepoDir returns the default repository directory path.
@@ -375,9 +370,7 @@ func getClusterNamePrefix(capiUser string) string {
 		// #nosec G304 - path constructed from repo directory and fixed filename (.deployment-state.json)
 		if data, err := os.ReadFile(stateFilePath); err == nil {
 			var state struct {
-				ClusterNamePrefix string            `json:"cluster_name_prefix"`
-				ResourceTags      map[string]string `json:"resource_tags,omitempty"`
-				AzureResourceTags map[string]string `json:"azure_resource_tags,omitempty"`
+				ClusterNamePrefix string `json:"cluster_name_prefix"`
 			}
 			if unmarshalErr := json.Unmarshal(data, &state); unmarshalErr != nil {
 				errMsg := fmt.Sprintf("deployment state file %s exists but cannot be parsed: %v\n"+
@@ -387,10 +380,6 @@ func getClusterNamePrefix(capiUser string) string {
 				return
 			} else if state.ClusterNamePrefix != "" {
 				clusterNamePrefix = state.ClusterNamePrefix
-				cachedResourceTags = state.ResourceTags
-				if cachedResourceTags == nil {
-					cachedResourceTags = state.AzureResourceTags
-				}
 				return
 			}
 		} else if !os.IsNotExist(err) {
@@ -480,14 +469,13 @@ type TestConfig struct {
 	Region                   string
 	AzureSubscriptionName    string // Azure subscription name (from AZURE_SUBSCRIPTION_NAME env var)
 	Environment              string
-	CAPIUser                 string            // User identifier for CAPI resources (from CAPI_USER env var)
-	WorkloadClusterNamespace string            // Namespace for workload cluster resources on management cluster (unique per test run)
-	TestLabelPrefix          string            // Provider-specific label prefix for test namespaces (e.g., "capz-test" for ARO, "capa-test" for ROSA)
-	TestRunID                string            // Unique run identifier extracted from ClusterNamePrefix (the part after CAPI_USER-). Empty when prefix does not start with CAPI_USER-.
-	ResourceTags             map[string]string // Tags applied to all created cloud resources (Azure RGs, AWS stacks/VPCs) for ownership tracking and cleanup
-	ResourceGroupName        string            // Azure resource group name (env: RESOURCEGROUPNAME, default: ${WorkloadClusterName}-${runID}-resgroup)
-	CAPINamespace            string            // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" in K8S mode)
-	CAPZNamespace            string            // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" in K8S mode)
+	CAPIUser                 string // User identifier for CAPI resources (from CAPI_USER env var)
+	WorkloadClusterNamespace string // Namespace for workload cluster resources on management cluster (unique per test run)
+	TestLabelPrefix          string // Provider-specific label prefix for test namespaces (e.g., "capz-test" for ARO, "capa-test" for ROSA)
+	TestRunID                string // Unique run identifier extracted from ClusterNamePrefix (the part after CAPI_USER-). Empty when prefix does not start with CAPI_USER-.
+	ResourceGroupName        string // Azure resource group name (env: RESOURCEGROUPNAME, default: ${WorkloadClusterName}-${runID}-resgroup)
+	CAPINamespace            string // Namespace for CAPI controller (default: "capi-system", or "multicluster-engine" in K8S mode)
+	CAPZNamespace            string // Namespace for CAPZ/ASO controllers (default: "capz-system", or "multicluster-engine" in K8S mode)
 
 	// Management cluster mode
 	// ClusterMode specifies the management cluster deployment mode ("kind" or "mce").
@@ -717,18 +705,6 @@ func NewTestConfig() *TestConfig {
 	workloadClusterName := GetEnvOrDefault("WORKLOAD_CLUSTER_NAME", defaultWorkloadCluster)
 	rgName := getResourceGroupName(workloadClusterName, testRunID)
 
-	// Build resource tags for cleanup and ownership tracking (used for both Azure and AWS).
-	// On resume, use cached tags from the deployment state to preserve the original created-at timestamp.
-	resourceTags := cachedResourceTags
-	if resourceTags == nil {
-		resourceTags = map[string]string{
-			"capi-test-user":       capiUser,
-			"capi-test-env":        environment,
-			"capi-test-run-id":     prefix,
-			"capi-test-created-at": time.Now().Format(time.RFC3339),
-		}
-	}
-
 	clusterDeployTimeout := parseClusterDeploymentTimeout()
 
 	return &TestConfig{
@@ -751,7 +727,6 @@ func NewTestConfig() *TestConfig {
 		WorkloadClusterNamespace: getWorkloadClusterNamespace(testLabelPrefix),
 		TestLabelPrefix:          testLabelPrefix,
 		TestRunID:                testRunID,
-		ResourceTags:             resourceTags,
 		ResourceGroupName:        rgName,
 		CAPINamespace:            getControllerNamespace(useK8S, "CAPI_NAMESPACE", "capi-system"),
 		CAPZNamespace:            providerNamespace,

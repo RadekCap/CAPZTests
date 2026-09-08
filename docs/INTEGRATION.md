@@ -227,7 +227,7 @@ export CS_CLUSTER_NAME=${WORKLOAD_CLUSTER_NAME:-"$CS_CLUSTER_NAME"}
 export CS_CLUSTER_NAME=${CS_CLUSTER_NAME:-$USER-$ENV}
 ```
 
-Since capi-tests always sets both `WORKLOAD_CLUSTER_NAME` and `CS_CLUSTER_NAME` before calling gen.sh, `WORKLOAD_CLUSTER_NAME` wins. In practice this means Azure resources are named using `WORKLOAD_CLUSTER_NAME` (e.g., `capz-tests`), not the auto-generated `CS_CLUSTER_NAME` prefix (e.g., `cate-a1b2c`). The `CS_CLUSTER_NAME` value is still used by capi-tests for cleanup tagging and resource group naming.
+Since capi-tests always sets both `WORKLOAD_CLUSTER_NAME` and `CS_CLUSTER_NAME` before calling gen.sh, `WORKLOAD_CLUSTER_NAME` wins. In practice this means Azure resources are named using `WORKLOAD_CLUSTER_NAME` (e.g., `capz-tests`), not the auto-generated `CS_CLUSTER_NAME` prefix (e.g., `cate-a1b2c`). The `CS_CLUSTER_NAME` value is still used for resource group naming; provider scripts own cleanup tagging.
 
 ### ROSA Differences (scripts/rosa-hcp/gen.sh)
 
