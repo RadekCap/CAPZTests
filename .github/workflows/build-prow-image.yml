@@ -26,14 +26,14 @@ jobs:
         IMAGE_SHA: ${{ github.sha }}
       run: |
         docker build -f Dockerfile.prow \
-          -t "quay.io/rcap/capi-tests-prow:${IMAGE_SHA}" \
-          -t quay.io/rcap/capi-tests-prow:latest \
+          -t "quay.io/capz/capi-tests-prow:${IMAGE_SHA}" \
+          -t quay.io/capz/capi-tests-prow:latest \
           .
 
     - name: Push to quay.io
       id: push
       env:
-        QUAY_AUTH: ${{ secrets.QUAY_AUTH }}
+        QUAY_AUTH: ${{ secrets.QUAY_PUSH_AUTH }}
         IMAGE_SHA: ${{ github.sha }}
       run: |
         echo "::add-mask::${QUAY_AUTH}"
@@ -43,9 +43,9 @@ jobs:
         PASSWORD="${DECODED#*:}"
         echo "::add-mask::${PASSWORD}"
         echo "${PASSWORD}" | docker login quay.io --username "${USERNAME}" --password-stdin
-        docker push "quay.io/rcap/capi-tests-prow:${IMAGE_SHA}"
-        docker push quay.io/rcap/capi-tests-prow:latest
-        DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' quay.io/rcap/capi-tests-prow:latest)
+        docker push "quay.io/capz/capi-tests-prow:${IMAGE_SHA}"
+        docker push quay.io/capz/capi-tests-prow:latest
+        DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' quay.io/capz/capi-tests-prow:latest)
         if [[ -z "${DIGEST}" ]]; then
           echo "::error::Failed to resolve image digest — RepoDigests is empty after push"
           exit 1
