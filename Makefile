@@ -249,7 +249,7 @@ _deploy-crs: check-gotestsum
 	if [ $$EXIT_CODE -eq 0 ]; then \
 		echo ""; \
 		echo "--- Phase 2: Monitor deployment ---"; \
-		CLUSTER_DEPLOYMENT_TIMEOUT=$(CLUSTER_DEPLOYMENT_TIMEOUT) TEST_RESULTS_DIR=$(TEST_RESULTS_DIR) $(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy-monitor.xml -- $(TEST_VERBOSITY) ./test -count=1 -run "TestDeployment_Monitor|TestDeployment_Wait|TestDeployment_Verify|TestDeployment_Tag" -timeout $(GO_STEP_DEPLOY_CRS_TIMEOUT) || EXIT_CODE=$$?; \
+		CLUSTER_DEPLOYMENT_TIMEOUT=$(CLUSTER_DEPLOYMENT_TIMEOUT) TEST_RESULTS_DIR=$(TEST_RESULTS_DIR) $(GOTESTSUM) --junitfile=$(RESULTS_DIR)/junit-deploy-monitor.xml -- $(TEST_VERBOSITY) ./test -count=1 -run "TestDeployment_Monitor|TestDeployment_Wait|TestDeployment_Verify|TestDeployment_Tag" -timeout $(GO_STEP_DEPLOY_CRS_TIMEOUT) -failfast || EXIT_CODE=$$?; \
 	fi; \
 	mkdir -p $(LATEST_RESULTS_DIR); \
 	cp -f $(RESULTS_DIR)/*.xml $(LATEST_RESULTS_DIR)/ 2>/dev/null || true; \
